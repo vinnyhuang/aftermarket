@@ -20,14 +20,23 @@ export const signUp = async (
       email: input.email,
       password: bcryptHash,
       role: 'user',
+      username: input.username,
+      name: input.name,
+      referralType: input.referralType,
+      referralName: input.referralName
     },
   });
+  
   return {
     id: user.id,
     email: user.email,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     role: user.role,
+    username: user.username,
+    name: user.name,
+    referralType: user.referralType,
+    referralName: user.referralName
   };
 };
 
@@ -59,7 +68,7 @@ export const signIn = async (
   const token = sign(
     {
       id: user.id,
-      roles: user.role,
+      role: user.role,
     },
     authConfig.secretKey,
     { expiresIn: authConfig.jwtExpiresIn }
@@ -71,6 +80,10 @@ export const signIn = async (
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
     role: user.role,
+    username: user.username,
+    name: user.name,
+    referralType: user.referralType,
+    referralName: user.referralName,
     accessToken: token,
   };
 };

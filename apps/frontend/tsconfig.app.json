@@ -8,6 +8,8 @@
       "@nx/react/typings/image.d.ts"
     ],
     "paths": {
+      "@/*": ["apps/frontend/src/*"],
+      "@assets/*": ["apps/frontend/src/assets/*"],
       "@utils/*": ["apps/frontend/src/utils/*"],
       "@GlobalState": ["apps/frontend/src/app/GlobalState.ts"]
     }

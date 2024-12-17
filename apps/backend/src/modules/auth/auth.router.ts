@@ -1,5 +1,5 @@
 import { noAuthProcedure, router } from '../../server/trpc';
-import { userCredentialsSchema } from './auth.dtos';
+import { signInCredentialsSchema, userCredentialsSchema } from './auth.dtos';
 import { signIn, signUp } from './auth.service';
 
 export const authRouter = router({
@@ -8,6 +8,6 @@ export const authRouter = router({
     .mutation(async ({ input, ctx }) => signUp(input, ctx)),
 
   signIn: noAuthProcedure
-    .input(userCredentialsSchema)
+    .input(signInCredentialsSchema)
     .mutation(async ({ input, ctx }) => signIn(input, ctx)),
 });

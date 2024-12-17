@@ -11,10 +11,69 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime @updatedAt @db.Timestamptz(3)
-  email     String   @unique @db.VarChar(255)
-  role      String   @db.VarChar(255)
-  password  String   @db.VarChar(255)
+  id           String     @id @default(uuid()) @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  email        String     @unique @db.VarChar(255)
+  username     String     @unique @db.VarChar(255)
+  name         String     @db.VarChar(255)
+  role         String     @db.VarChar(255)
+  password     String     @db.VarChar(255)
+  referralType String     @db.VarChar(255)
+  referralName String     @db.VarChar(255)
+  userGames    UserGame[]
+}
+
+model Game {
+  id                 String     @id @default(uuid()) @db.Uuid
+  sportKey           String     @db.VarChar(255)
+  sportTitle         String     @db.VarChar(255)
+  commenceTime       DateTime   @db.Timestamptz(3)
+  homeTeam           String     @db.VarChar(255)
+  awayTeam           String     @db.VarChar(255)
+  active             Boolean    @default(false)
+  pregameHomePayout  Decimal    @db.Decimal(10,2)
+  pregameAwayPayout  Decimal    @db.Decimal(10,2)
+  pregameHomeWinProb Decimal    @db.Decimal(10,2)
+  pregameAwayWinProb Decimal    @db.Decimal(10,2)
+  timeOdds           TimeOdds[]
+  userGames          UserGame[]
+}
+
+model TimeOdds {
+  id          String   @id @default(uuid()) @db.Uuid
+  game        Game     @relation(fields: [gameId], references: [id])
+  gameId      String   @db.Uuid
+  time        DateTime @db.Timestamptz(3)
+  homePrice   Decimal  @db.Decimal(10,2)
+  awayPrice   Decimal  @db.Decimal(10,2)
+  homeWinProb Decimal  @db.Decimal(10,2)
+  awayWinProb Decimal  @db.Decimal(10,2)
+}
+
+model UserGame {
+  id            String          @id @default(uuid()) @db.Uuid
+  user          User            @relation(fields: [userId], references: [id])
+  userId        String          @db.Uuid
+  game          Game            @relation(fields: [gameId], references: [id]) 
+  gameId        String          @db.Uuid
+  createdAt     DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
+  bankroll      Decimal         @db.Decimal(10,2)
+  userGamePositions UserGamePosition[]
+
+  @@unique([userId, gameId])
+}
+
+model UserGamePosition {
+  id          String    @id @default(uuid()) @db.Uuid
+  userGame    UserGame  @relation(fields: [userGameId], references: [id])
+  userGameId  String    @db.Uuid
+  team        String    @db.VarChar(255)
+  buyAmount   Decimal   @db.Decimal(10,2)
+  buyPrice    Decimal   @db.Decimal(10,2)
+  buyTime     DateTime  @db.Timestamptz(3)
+  sellAmount  Decimal?  @db.Decimal(10,2)
+  sellPrice   Decimal?  @db.Decimal(10,2)
+  sellTime    DateTime? @db.Timestamptz(3)
 }
