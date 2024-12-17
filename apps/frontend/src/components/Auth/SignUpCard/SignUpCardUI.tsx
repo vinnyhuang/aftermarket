@@ -21,6 +21,10 @@ import { Link as RouterLink } from 'react-router-dom';
 export type EmailAndPassword = {
   email: string;
   password: string;
+  username: string;
+  name: string;
+  referralType: string;
+  referralName: string;
 };
 
 type SignUpCardProps = {

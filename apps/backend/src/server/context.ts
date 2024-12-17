@@ -7,6 +7,7 @@ import { PrismaClient } from '@prisma/client';
 export const prisma = new PrismaClient();
 
 export interface User {
+  id: string;
   email: string;
   role: 'user' | 'admin';
 }

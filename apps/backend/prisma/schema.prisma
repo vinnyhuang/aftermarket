@@ -25,15 +25,19 @@ model User {
 }
 
 model Game {
-  id           String     @id @default(uuid()) @db.Uuid
-  sportKey     String     @db.VarChar(255)
-  sportTitle   String     @db.VarChar(255)
-  commenceTime DateTime   @db.Timestamptz(3)
-  homeTeam     String     @db.VarChar(255)
-  awayTeam     String     @db.VarChar(255)
-  bankroll     Decimal    @db.Decimal(10,2)
-  timeOdds     TimeOdds[]
-  userGames    UserGame[]
+  id                 String     @id @default(uuid()) @db.Uuid
+  sportKey           String     @db.VarChar(255)
+  sportTitle         String     @db.VarChar(255)
+  commenceTime       DateTime   @db.Timestamptz(3)
+  homeTeam           String     @db.VarChar(255)
+  awayTeam           String     @db.VarChar(255)
+  active             Boolean    @default(false)
+  pregameHomePayout  Decimal    @db.Decimal(10,2)
+  pregameAwayPayout  Decimal    @db.Decimal(10,2)
+  pregameHomeWinProb Decimal    @db.Decimal(10,2)
+  pregameAwayWinProb Decimal    @db.Decimal(10,2)
+  timeOdds           TimeOdds[]
+  userGames          UserGame[]
 }
 
 model TimeOdds {
@@ -55,19 +59,21 @@ model UserGame {
   gameId        String          @db.Uuid
   createdAt     DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime        @updatedAt @db.Timestamptz(3)
-  userGameTrades UserGameTrade[]
+  bankroll      Decimal         @db.Decimal(10,2)
+  userGamePositions UserGamePosition[]
 
   @@unique([userId, gameId])
 }
 
-model UserGameTrade {
-  id         String   @id @default(uuid()) @db.Uuid
-  userGame   UserGame @relation(fields: [userGameId], references: [id])
-  userGameId String   @db.Uuid
-  type       String   @db.VarChar(255)
-  team       String   @db.VarChar(255)
-  amount     Decimal  @db.Decimal(10,2)
-  price      Decimal  @db.Decimal(10,2)
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+model UserGamePosition {
+  id          String    @id @default(uuid()) @db.Uuid
+  userGame    UserGame  @relation(fields: [userGameId], references: [id])
+  userGameId  String    @db.Uuid
+  team        String    @db.VarChar(255)
+  buyAmount   Decimal   @db.Decimal(10,2)
+  buyPrice    Decimal   @db.Decimal(10,2)
+  buyTime     DateTime  @db.Timestamptz(3)
+  sellAmount  Decimal?  @db.Decimal(10,2)
+  sellPrice   Decimal?  @db.Decimal(10,2)
+  sellTime    DateTime? @db.Timestamptz(3)
 }

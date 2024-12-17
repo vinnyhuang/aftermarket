@@ -5,6 +5,7 @@ import { appRouter } from './router';
 import cors from '@fastify/cors';
 import pretty from 'pino-pretty';
 import pino from 'pino';
+import websocketPlugin from './plugins/websocket';
 
 export interface ServerOptions {
   dev?: boolean;
@@ -35,6 +36,8 @@ export function createServer(opts: ServerOptions) {
     origin: '*',
     methods: '*',
   });
+
+  server.register(websocketPlugin);
 
   server.register(fastifyTRPCPlugin, {
     prefix,
