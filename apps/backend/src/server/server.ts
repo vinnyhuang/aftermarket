@@ -12,6 +12,7 @@ export interface ServerOptions {
   port?: number;
   prefix?: string;
   environment: 'development' | 'production' | 'test' | 'local';
+  host: string;
 }
 
 export function createServer(opts: ServerOptions) {
@@ -47,7 +48,7 @@ export function createServer(opts: ServerOptions) {
   const stop = () => server.close();
   const start = async () => {
     try {
-      await server.listen({ port });
+      await server.listen({ port, host: opts.host });
     } catch (err) {
       server.log.error(err);
       process.exit(1);
