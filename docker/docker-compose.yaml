@@ -1,19 +1,69 @@
 ## Only for local development or running tests
-
-version: '3.4'
-
+name: aftermarket
 services:
   postgres:
-    image: postgres:alpine
+    image: postgres:16
     container_name: postgres
     ports:
-      - 5432:5432
+      - "${POSTGRES_PORT:-55674}:5432"
     environment:
-      POSTGRES_USER: 'user'
-      POSTGRES_PASSWORD: 'password'
-      POSTGRES_DB: 'my_app'
+      POSTGRES_USER: ${POSTGRES_USER:-user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-my_app}
     volumes:
       - postgres:/var/lib/postgresql/data
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-user} -d ${POSTGRES_DB:-my_app}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+      target: final
+    container_name: backend
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=${NODE_ENV:-local}
+      - APP_PORT=3000
+      - API_PREFIX=${API_PREFIX:-/trpc}
+      - SECRET_KEY=${SECRET_KEY}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - HOST=0.0.0.0
+      - THE_ODDS_API_KEY=${THE_ODDS_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      target: final
+      args:
+        - VITE_APP_URL=${VITE_APP_URL}
+    container_name: frontend
+    ports:
+      - "80:80"
+    environment:
+      - VITE_APP_URL=${VITE_APP_URL}
+      - NODE_ENV=${NODE_ENV:-local}
+    depends_on:
+      - backend
+    networks:
+      - app-network
 
 volumes:
   postgres:
+
+networks:
+  app-network:
+    driver: bridge

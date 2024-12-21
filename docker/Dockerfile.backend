@@ -1,0 +1,72 @@
+FROM node:18-slim AS base
+WORKDIR /app
+# Install OpenSSL for prisma
+RUN apt-get update -y && \
+    apt-get install -y openssl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# Copy root files needed for NX monorepo
+COPY package.json package-lock.json* ./
+RUN npm install --legacy-peer-deps
+COPY nx.json ./
+COPY tsconfig.base.json ./
+COPY babel.config.json ./
+
+# Development stage
+FROM base AS development
+# Copy the entire monorepo for development
+COPY apps/backend/prisma ./apps/backend/prisma
+RUN cd apps/backend && \
+    npx prisma generate && \
+    mkdir -p /tmp/prisma-engines && \
+    cp /app/node_modules/@prisma/engines/libquery_engine-debian-openssl-3.0.x.so.node /tmp/prisma-engines/
+COPY apps/backend ./apps/backend
+# Create startup script with Prisma engine check
+COPY <<-"EOF" /app/start.sh
+#!/bin/sh
+echo "Running database migrations..."
+npx prisma migrate deploy
+echo "Starting the application..."
+npm run backend:dev
+EOF
+RUN chmod +x /app/start.sh
+CMD ["/app/start.sh"]
+
+# Build stage
+FROM base AS builder
+# Copy only necessary files first
+COPY apps/backend/ ./apps/backend/
+# Install dependencies and generate Prisma client
+RUN cd apps/backend && \
+    npx prisma generate
+# Build the application
+RUN npx nx build backend --prod
+
+# Production stage
+FROM node:18-slim AS final
+WORKDIR /app
+# Install production dependencies first - helps with layer caching
+COPY package.json package-lock.json* ./
+RUN npm install --legacy-peer-deps --only=production && \
+    apt-get update -y && \
+    apt-get install -y openssl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+RUN mkdir -p apps/backend/prisma
+COPY --from=builder /app/apps/backend/prisma ./apps/backend/prisma
+RUN npx prisma generate && \
+    mkdir -p /tmp/prisma-engines && \
+    # find /app -name "libquery_engine-debian-openssl-3.0.x.so.node" # helps with debugging
+    cp /app/node_modules/.prisma/client/libquery_engine-debian-openssl-3.0.x.so.node /tmp/prisma-engines/
+# Copy built application
+COPY --from=builder /app/dist/apps/backend ./dist
+COPY <<-"EOF" /app/start.sh
+#!/bin/sh
+echo "Running database migrations..."
+npx prisma migrate deploy
+echo "Starting the application..."
+node dist/main.cjs
+EOF
+RUN chmod +x /app/start.sh
+EXPOSE 3000
+CMD ["/app/start.sh"]

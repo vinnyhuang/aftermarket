@@ -10,4 +10,5 @@ export const serverConfig: ServerOptions = {
 
   port: get('APP_PORT').required().asPortNumber(),
   prefix: get('API_PREFIX').required().asString(),
+  host: get('HOST').default('0.0.0.0').asString(),
 };

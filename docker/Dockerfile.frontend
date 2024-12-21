@@ -1,0 +1,33 @@
+
+FROM node:18-slim AS base
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY nx.json ./
+COPY tsconfig.base.json ./
+COPY babel.config.json ./
+RUN npm install --legacy-peer-deps
+ARG VITE_APP_URL
+ENV VITE_APP_URL=$VITE_APP_URL
+
+# Development stage
+FROM base AS development
+COPY apps/frontend ./apps/frontend
+COPY apps/backend ./apps/backend
+EXPOSE 4200
+CMD ["npm", "run", "frontend:dev", "--", "--host", "0.0.0.0"]
+
+# Build stage
+FROM base AS builder
+COPY apps/frontend ./apps/frontend
+COPY apps/backend ./apps/backend
+
+# Generate Prisma client for types
+RUN cd apps/backend && npx prisma generate
+# Build frontend
+RUN npm run build:frontend
+# Production stage
+FROM nginx:alpine AS final
+COPY --from=builder /app/dist/apps/frontend /usr/share/nginx/html
+COPY docker/config/nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
