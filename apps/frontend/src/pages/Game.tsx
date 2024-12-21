@@ -54,7 +54,7 @@ const gradientText = {
 };
 
 const calculateTeamPrice = (
-  currentWinProb: number | null, 
+  currentWinProb: number | null,
   pregameWinProb: number | null
 ): number => {
   if (!currentWinProb || !pregameWinProb) return 0;
@@ -89,7 +89,7 @@ const GamePage = () => {
       onBuyClose();
     }
   });
-  
+
   const sellPositionMutation = trpc.game.sellPosition.useMutation({
     onSuccess: () => {
       refetchPositions();
@@ -117,8 +117,8 @@ const GamePage = () => {
   }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isCreatingGame]);
 
   const activePosition = positions?.find(p => !p.sellAmount && !p.sellPrice);
-  const availableBankroll = userGame?.bankroll 
-    ? Number(userGame.bankroll) - 
+  const availableBankroll = userGame?.bankroll
+    ? Number(userGame.bankroll) -
       (positions?.reduce((sum, pos) => sum + Number(pos.buyAmount), 0) || 0) +
       (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)
     : 0;
@@ -127,12 +127,12 @@ const GamePage = () => {
       Number(activeGame?.pregameHomePayout || 0),
       Number(activeGame?.pregameAwayPayout || 0)
     );
-    
+
     const chartData = {
       labels: oddsHistory.map(odds => {
         const date = new Date(odds.time);
-        return date.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
           minute: '2-digit',
           timeZone: 'America/New_York'
         });
@@ -140,7 +140,7 @@ const GamePage = () => {
       datasets: [
         {
           label: 'Home Team Bet Value',
-          data: oddsHistory.map(odds => 
+          data: oddsHistory.map(odds =>
             calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
           ),
           borderColor: '#4caf50',
@@ -154,7 +154,7 @@ const GamePage = () => {
         },
         {
           label: 'Away Team Bet Value',
-          data: oddsHistory.map(odds => 
+          data: oddsHistory.map(odds =>
             calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
           ),
           borderColor: '#ff5722',
@@ -168,7 +168,7 @@ const GamePage = () => {
         }
       ]
     };
-    
+
     const chartOptions = {
       responsive: true,
       interaction: {
@@ -219,7 +219,7 @@ const GamePage = () => {
 
     const gameTime = new Date(activeGame.commenceTime);
     const now = new Date();
-    
+
     if (gameTime <= now) {
       setCountdown('The game has started!');
       return;
@@ -247,15 +247,20 @@ const GamePage = () => {
   }, [activeGame]);
 
   useEffect(() => {
-    const websocket = new WebSocket(`ws://${window.location.hostname}:3000/ws`);
-    
+    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    const websocket = new WebSocket(wsUrl);
+
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'odds_history') {
         setOddsHistory(data.data);
       }
     };
-  
+
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
     return () => {
       websocket.close();
     };
@@ -263,7 +268,7 @@ const GamePage = () => {
 
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
-    
+
     buyPositionMutation.mutate({
       userGameId: userGame.id,
       team: selectedTeam,
@@ -274,7 +279,7 @@ const GamePage = () => {
   
   const handleSell = (positionId: string) => {
     if (!activePosition) return;
-    
+
     const sellPrice = activePosition.team === 'home' ? homePrice : awayPrice;
     sellPositionMutation.mutate({
       positionId,
@@ -392,17 +397,17 @@ const GamePage = () => {
               </Box>
 
               <Flex gap={4} justifyContent="center">
-                <Button 
-                  colorScheme="blue" 
-                  size="lg" 
+                <Button
+                  colorScheme="blue"
+                  size="lg"
                   onClick={onBuyOpen}
                   isDisabled={!!activePosition}
                 >
                   Buy
                 </Button>
-                <Button 
-                  colorScheme="red" 
-                  size="lg" 
+                <Button
+                  colorScheme="red"
+                  size="lg"
                   onClick={onSellOpen}
                   isDisabled={!activePosition}
                 >

@@ -5,7 +5,7 @@ services:
     image: postgres:16
     container_name: postgres
     ports:
-      - "${POSTGRES_PORT:-55674}:5432"
+      - "55674:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
@@ -26,6 +26,7 @@ services:
       dockerfile: docker/Dockerfile.backend
       target: final
     container_name: backend
+    restart: always
     ports:
       - "${BACKEND_PORT:-3000}:3000"
     environment:
@@ -50,7 +51,9 @@ services:
       target: final
       args:
         - VITE_APP_URL=${VITE_APP_URL}
+        - VITE_WS_URL=${VITE_WS_URL}
     container_name: frontend
+    restart: always
     ports:
       - "80:80"
     environment:
