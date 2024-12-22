@@ -52,12 +52,43 @@ update() {
     load_config
     test_ssh_connection
 
+    # First, update the remote repository to get all new branches
+    log "Fetching latest changes from remote repository..."
+    ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
+        "cd ${REMOTE_PROJECT_PATH} && git fetch --all" || error_exit "Failed to fetch updates"
+
+    # Get list of branches locally
+    log "Available branches:"
+    BRANCHES=$(ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
+        "cd ${REMOTE_PROJECT_PATH} && git branch -r | grep -v HEAD | sed 's/origin\///' | nl -w2 -s') '")
+    echo "$BRANCHES"
+
+    # Ask for branch selection locally (not through SSH)
+    echo "\nEnter the number of the branch you want to deploy (or press Enter for current branch):"
+    read branch_number
+
+    # Determine target branch
+    if [ -n "$branch_number" ]; then
+        target_branch=$(echo "$BRANCHES" | sed -n "${branch_number}p" | sed 's/^[[:space:]0-9]*) //')
+        if [ -z "$target_branch" ]; then
+            error_exit "Invalid branch number selected"
+        fi
+        log "Deploying branch: $target_branch"
+    else
+        target_branch=$(ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
+            "cd ${REMOTE_PROJECT_PATH} && git branch --show-current")
+        log "Keeping current branch: $target_branch"
+    fi
+
+    # Execute deployment with the selected branch
     ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" /bin/sh <<EOF || error_exit "Remote command execution failed"
         set -e
         cd "${REMOTE_PROJECT_PATH}"
 
-        echo "Pulling latest changes..."
-        git pull
+        echo "Switching to branch: $target_branch"
+        git checkout $target_branch
+        git pull origin $target_branch
+
         changed_files=\$(git diff --name-only HEAD@{1} HEAD)
 
         if [ -n "\$changed_files" ]; then
