@@ -79,7 +79,7 @@ const LoginPage = () => {
               After Market
             </Heading>
             <Text fontSize="lg" color="gray.300">
-              Experience the ultimate live trading simulation! v1
+              Experience the ultimate live trading simulation!
             </Text>
           </VStack>
 
