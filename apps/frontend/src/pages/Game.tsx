@@ -139,28 +139,28 @@ const GamePage = () => {
       }),
       datasets: [
         {
-          label: 'Home Team Bet Value',
+          label: `${activeGame?.homeTeam} Trade Value`,
           data: oddsHistory.map(odds =>
             calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
           ),
           borderColor: '#4caf50',
-          backgroundColor: 'rgba(76, 175, 80, 0.2)',
+          backgroundColor: 'transparent',
           borderWidth: 2,
-          fill: true,
+          fill: false,
           tension: 0.4,
           pointRadius: 0,
           pointHoverRadius: 6,
           pointBackgroundColor: '#4caf50',
         },
         {
-          label: 'Away Team Bet Value',
+          label: `${activeGame?.awayTeam} Trade Value`,
           data: oddsHistory.map(odds =>
             calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
           ),
           borderColor: '#ff5722',
-          backgroundColor: 'rgba(255, 87, 34, 0.2)',
+          backgroundColor: 'transparent',
           borderWidth: 2,
-          fill: true,
+          fill: false,
           tension: 0.4,
           pointRadius: 0,
           pointHoverRadius: 6,
@@ -363,13 +363,13 @@ const GamePage = () => {
           {hasGameStarted && userGame && (
             <>
               <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" mb={4}>Pregame Payouts</Heading>
+                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
                 <VStack spacing={2}>
                   <Text color="gray.300">
-                    Max payout from $100 pregame bet on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
                   </Text>
                   <Text color="gray.300">
-                    Max payout from $100 pregame bet on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
+                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
                   </Text>
                 </VStack>
               </Box>
