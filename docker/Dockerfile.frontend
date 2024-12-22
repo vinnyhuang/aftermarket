@@ -30,4 +30,18 @@ RUN npm run build:frontend
 # Production stage - just a static files container (will be served by Caddy through a shared volume)
 FROM alpine:latest AS final
 COPY --from=builder /app/dist/apps/frontend /app
-CMD ["tail", "-f", "/dev/null"]  # Keep container running
+
+# Create entrypoint script
+# NOTE this clean up is used because the share volume between caddy and frontend container is not cleaned on subseqent builds
+RUN echo '#!/bin/bash\n\
+echo "Cleaning app directory..."\n\
+rm -rf /app/*\n\
+echo "Copying new build files..."\n\
+cp -r /tmp/build/* /app/\n\
+echo "Build files updated successfully"\n\
+# Keep container running\n\
+tail -f /dev/null' > /entrypoint.sh && \
+chmod +x /entrypoint.sh
+
+WORKDIR /app
+ENTRYPOINT ["/entrypoint.sh"]

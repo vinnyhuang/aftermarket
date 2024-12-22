@@ -1,40 +1,16 @@
 {
     email {$ACME_EMAIL}
-    # Enable admin API only in development
     admin off
+    # debug
+    # log {
+    #     level DEBUG
+    # }
 }
 
 {$DOMAIN} {
     tls {$ACME_EMAIL}
 
-    # Root directory pointing to the frontend static files
-    root * /srv/frontend
-
-    # Enable compression
-    encode gzip
-
-    # Handle SPA routing and static files
-    try_files {path} /index.html
-    file_server
-
-    # Cache static assets
-    @assets {
-        path /assets/*
-    }
-    header @assets {
-        Cache-Control "public, max-age=31536000"
-        # Prevent caching for development
-        ?no-cache "no-store, must-revalidate" {$NODE_ENV}==local
-    }
-
-    # Security headers
-    header {
-        X-Frame-Options "SAMEORIGIN"
-        X-XSS-Protection "1; mode=block"
-        X-Content-Type-Options "nosniff"
-    }
-
-    # tRPC endpoint
+    # Handle API routes first
     handle /trpc/* {
         reverse_proxy backend:3000 {
             header_up Host {host}
@@ -46,8 +22,14 @@
         }
     }
 
-    # WebSocket endpoint
-    handle /ws/* {
+    # WebSocket endpoint - make it more specific
+    @websocket {
+        path /ws*
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+
+    handle @websocket {
         reverse_proxy backend:3000 {
             header_up Host {host}
             header_up X-Real-IP {remote_host}
@@ -55,5 +37,31 @@
             header_up Connection "Upgrade"
             header_up Upgrade "websocket"
         }
+    }
+
+    # Static file handling - make it the last handler
+    handle {
+        root * /srv/frontend
+        encode gzip
+
+        # Cache static assets
+        @assets {
+            path /assets/*
+        }
+        header @assets {
+            Cache-Control "public, max-age=31536000"
+            # Prevent caching for development
+            ?no-cache "no-store, must-revalidate" {$NODE_ENV}==local
+        }
+
+        # Security headers
+        header {
+            X-Frame-Options "SAMEORIGIN"
+            X-XSS-Protection "1; mode=block"
+            X-Content-Type-Options "nosniff"
+        }
+
+        try_files {path} /index.html
+        file_server
     }
 }
