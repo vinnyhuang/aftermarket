@@ -58,6 +58,14 @@ export class LeaderboardService {
       .sort((a, b) => b.bankroll - a.bankroll)
       .slice(0, 10);
 
+    // Save leaderboard to game
+    await this.prisma.game.update({
+      where: { id: gameId },
+      data: {
+        currentLeaderboard: JSON.stringify(leaderboard)
+      }
+    });
+
     // Broadcast the leaderboard
     this.wsService.broadcastLeaderboard(top10Leaderboard);
   }

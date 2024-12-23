@@ -37,6 +37,7 @@ model Game {
   pregameAwayPayout  Decimal    @db.Decimal(10,2)
   pregameHomeWinProb Decimal    @db.Decimal(10,2)
   pregameAwayWinProb Decimal    @db.Decimal(10,2)
+  currentLeaderboard String?
   timeOdds           TimeOdds[]
   userGames          UserGame[]
 }

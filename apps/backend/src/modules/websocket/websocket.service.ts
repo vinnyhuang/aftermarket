@@ -35,6 +35,13 @@ export class WebSocketService {
           type: 'odds_history',
           data: oddsHistory
         }));
+
+        if (activeGame.currentLeaderboard) {
+          connection.socket.send(JSON.stringify({
+            type: 'leaderboard_update',
+            data: JSON.parse(activeGame.currentLeaderboard)
+          }));
+        }
       }
 
       connection.socket.on('close', () => {
