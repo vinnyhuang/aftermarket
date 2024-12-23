@@ -53,6 +53,15 @@ const gradientText = {
   textTransform: 'uppercase'
 };
 
+const Header = () => (
+  <Box textAlign="center" mt={6}>
+    <Image src={logo} alt="After Market Logo" boxSize="128px" mx="auto" />
+    <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
+      After Market Dashboard
+    </Heading>
+  </Box>
+);
+
 const calculateTeamPrice = (
   currentWinProb: number | null,
   pregameWinProb: number | null
@@ -116,103 +125,25 @@ const GamePage = () => {
     }
   }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isCreatingGame]);
 
-  const activePosition = positions?.find(p => !p.sellAmount && !p.sellPrice);
-  const availableBankroll = userGame?.bankroll
-    ? Number(userGame.bankroll) -
-      (positions?.reduce((sum, pos) => sum + Number(pos.buyAmount), 0) || 0) +
-      (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)
-    : 0;
+  useEffect(() => {
+    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    const websocket = new WebSocket(wsUrl);
 
-    const maxPayout = Math.max(
-      Number(activeGame?.pregameHomePayout || 0),
-      Number(activeGame?.pregameAwayPayout || 0)
-    );
-
-    const chartData = {
-      labels: oddsHistory.map(odds => {
-        const date = new Date(odds.time);
-        return date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'America/New_York'
-        });
-      }),
-      datasets: [
-        {
-          label: `${activeGame?.homeTeam} Trade Value`,
-          data: oddsHistory.map(odds =>
-            calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
-          ),
-          borderColor: '#4caf50',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#4caf50',
-        },
-        {
-          label: `${activeGame?.awayTeam} Trade Value`,
-          data: oddsHistory.map(odds =>
-            calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
-          ),
-          borderColor: '#ff5722',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#ff5722',
-        }
-      ]
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'odds_history') {
+        setOddsHistory(data.data);
+      }
     };
 
-    const chartOptions = {
-      responsive: true,
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: maxPayout,
-          ticks: {
-            callback: function(tickValue: number | string) {
-              return `$${tickValue}`;
-            },
-            color: 'rgb(156, 163, 175)'
-          },
-          grid: {
-            color: 'rgba(75, 85, 99, 0.2)'
-          }
-        },
-        x: {
-          ticks: {
-            color: 'rgb(156, 163, 175)'
-          },
-          grid: {
-            color: 'rgba(75, 85, 99, 0.2)'
-          }
-        }
-      },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: function(context: TooltipItem<"line">) {
-              return `${context.dataset.label}: $${context.parsed.y.toFixed(2)}`;
-            }
-          }
-        },
-        legend: {
-          labels: {
-            color: 'rgb(156, 163, 175)'
-          }
-        }
-      }
-    } as const;
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      websocket.close();
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeGame?.commenceTime) return;
@@ -246,25 +177,137 @@ const GamePage = () => {
     return () => clearInterval(timer);
   }, [activeGame]);
 
-  useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-    const websocket = new WebSocket(wsUrl);
+  const HeaderButtons = () => (
+    <Box position="absolute" top={4} right={4}>
+      <Flex gap={2}>
+        {user?.role === 'admin' && (
+          <Button colorScheme="blue" onClick={() => navigate('/admin')}>
+            Admin
+          </Button>
+        )}
+        <Button colorScheme="blue" onClick={() => {
+          // TODO: Implement logout logic
+          navigate('/login');
+        }}>
+          Logout
+        </Button>
+      </Flex>
+    </Box>
+  );
 
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'odds_history') {
-        setOddsHistory(data.data);
+  if (!activeGame) {
+    return (
+      <Box bgGradient="linear(to-b, gray.900, gray.800, gray.900)" minH="100vh" p={4}>
+        <Container maxW="container.xl">
+          <HeaderButtons />
+          <VStack spacing={8}>
+            <Header />
+            <Heading size="lg" color="green.400" mt={8}>No Game Scheduled</Heading>
+            <Text fontSize="lg" color="gray.300" mt={4}>Please check back later</Text>
+          </VStack>
+        </Container>
+      </Box>
+    );
+  }
+
+  const activePosition = positions?.find(p => !p.sellAmount && !p.sellPrice);
+  const availableBankroll = userGame?.bankroll
+    ? Number((Number(userGame.bankroll) -
+      (positions?.reduce((sum, pos) => sum + Number(pos.buyAmount), 0) || 0) +
+      (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)).toFixed(2))
+    : 0;
+
+  const maxPayout = Math.max(
+    Number(activeGame?.pregameHomePayout || 0),
+    Number(activeGame?.pregameAwayPayout || 0)
+  );
+
+  const chartData = {
+    labels: oddsHistory.map(odds => {
+      const date = new Date(odds.time);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/New_York'
+      });
+    }),
+    datasets: [
+      {
+        label: `${activeGame?.homeTeam} Trade Value`,
+        data: oddsHistory.map(odds =>
+          calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
+        ),
+        borderColor: '#4caf50',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#4caf50',
+      },
+      {
+        label: `${activeGame?.awayTeam} Trade Value`,
+        data: oddsHistory.map(odds =>
+          calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
+        ),
+        borderColor: '#ff5722',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#ff5722',
       }
-    };
+    ]
+  };
 
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    return () => {
-      websocket.close();
-    };
-  }, []);
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      intersect: false,
+      mode: 'index'
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: maxPayout,
+        ticks: {
+          callback: function(tickValue: number | string) {
+            return `$${tickValue}`;
+          },
+          color: 'rgb(156, 163, 175)'
+        },
+        grid: {
+          color: 'rgba(75, 85, 99, 0.2)'
+        }
+      },
+      x: {
+        ticks: {
+          color: 'rgb(156, 163, 175)'
+        },
+        grid: {
+          color: 'rgba(75, 85, 99, 0.2)'
+        }
+      }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context: TooltipItem<"line">) {
+            return `${context.dataset.label}: $${context.parsed.y.toFixed(2)}`;
+          }
+        }
+      },
+      legend: {
+        labels: {
+          color: 'rgb(156, 163, 175)'
+        }
+      }
+    }
+  } as const;
 
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
@@ -288,50 +331,8 @@ const GamePage = () => {
     });
   };
 
-  const HeaderButtons = () => (
-    <Box position="absolute" top={4} right={4}>
-      <Flex gap={2}>
-        {user?.role === 'admin' && (
-          <Button colorScheme="blue" onClick={() => navigate('/admin')}>
-            Admin
-          </Button>
-        )}
-        <Button colorScheme="blue" onClick={() => {
-          // TODO: Implement logout logic
-          navigate('/login');
-        }}>
-          Logout
-        </Button>
-      </Flex>
-    </Box>
-  );
-
-  const Header = () => (
-    <Box textAlign="center" mt={6}>
-      <Image src={logo} alt="After Market Logo" boxSize="128px" mx="auto" />
-      <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-        After Market Dashboard
-      </Heading>
-    </Box>
-  );
-
-  if (!activeGame) {
-    return (
-      <Box bgGradient="linear(to-b, gray.900, gray.800, gray.900)" minH="100vh" p={4}>
-        <Container maxW="container.xl">
-          <HeaderButtons />
-          <VStack spacing={8}>
-            <Header />
-            <Heading size="lg" color="green.400" mt={8}>No Game Scheduled</Heading>
-            <Text fontSize="lg" color="gray.300" mt={4}>Please check back later</Text>
-          </VStack>
-        </Container>
-      </Box>
-    );
-  }
-
-  // const hasGameStarted = new Date(activeGame.commenceTime) <= new Date();
-  const hasGameStarted = true;
+  const hasGameStarted = new Date(activeGame.commenceTime) <= new Date();
+  // const hasGameStarted = true;
 
   const latestOdds = oddsHistory[oddsHistory.length - 1];
   const homePrice = calculateTeamPrice(
@@ -381,7 +382,9 @@ const GamePage = () => {
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" textAlign="center" mb={4}>Live Odds Chart</Heading>
-                <Line data={chartData} options={chartOptions} />
+                <Box h={["300px", "400px"]}>
+                  <Line data={chartData} options={chartOptions} />
+                </Box>
               </Box>
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
@@ -414,44 +417,44 @@ const GamePage = () => {
                   Sell
                 </Button>
               </Flex>
+
+              <Box w="full" bg="gray.800" p={6} rounded="lg">
+                <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
+                {positions && positions.length > 0 ? (
+                  <Table variant="simple">
+                    <Thead>
+                      <Tr>
+                        <Th color="gray.400">Team</Th>
+                        <Th color="gray.400">Amount Paid</Th>
+                        <Th color="gray.400">Buy Price</Th>
+                        <Th color="gray.400">Amount Sold For</Th>
+                        <Th color="gray.400">Sell Price</Th>
+                      </Tr>
+                    </Thead>
+                    <Tbody>
+                      {positions.map(position => (
+                        <Tr key={position.id}>
+                          <Td color="white">
+                            {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
+                          </Td>
+                          <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
+                          <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
+                          <Td color="white">
+                            {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
+                          </Td>
+                          <Td color="white">
+                            {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                ) : (
+                  <Text color="gray.300">No positions yet</Text>
+                )}
+              </Box>
             </>
           )}
-
-          <Box w="full" bg="gray.800" p={6} rounded="lg">
-            <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
-            {positions && positions.length > 0 ? (
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th color="gray.400">Team</Th>
-                    <Th color="gray.400">Amount Paid</Th>
-                    <Th color="gray.400">Buy Price</Th>
-                    <Th color="gray.400">Amount Sold For</Th>
-                    <Th color="gray.400">Sell Price</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {positions.map(position => (
-                    <Tr key={position.id}>
-                      <Td color="white">
-                        {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
-                      </Td>
-                      <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
-                      <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
-                      <Td color="white">
-                        {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
-                      </Td>
-                      <Td color="white">
-                        {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            ) : (
-              <Text color="gray.300">No positions yet</Text>
-            )}
-          </Box>
 
           <Box w="full" bg="gray.800" p={6} rounded="lg">
             <Heading size="lg" color="green.400" mb={4}>Game Overview</Heading>
