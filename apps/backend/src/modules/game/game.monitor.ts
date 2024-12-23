@@ -1,6 +1,6 @@
 import { Game, TimeOdds } from '@prisma/client';
 import { prisma } from '../../server/context';
-import { getOddsForGame } from '../odds/odds.service';
+import { getOddsForGame, getGameScore } from '../odds/odds.service';
 import { WebSocketService } from '../websocket/websocket.service';
 import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
@@ -71,6 +71,15 @@ export class GameMonitor {
 
     // Define polling function
     const pollOdds = async () => {
+      // First check if game is completed
+      const score = await getGameScore(game);
+      if (score?.completed) {
+        const winningTeam = score.homeScore > score.awayScore ? 'home' : 'away';
+        await this.handleGameEnd(game, winningTeam);
+        this.stopPolling();
+        return;
+      }
+
       const odds = await getOddsForGame(game);
       if (!odds) return;
 
@@ -88,7 +97,7 @@ export class GameMonitor {
       // Broadcast odds history
       this.wsService.broadcastOddsHistory(this.oddsHistory);
 
-        // Calculate current prices
+      // Calculate current prices
       const homePrice = calculateTeamPrice(
         Number(odds.homeWinProb),
         Number(game.pregameHomeWinProb)
@@ -119,5 +128,58 @@ export class GameMonitor {
       this.pollInterval = null;
       this.oddsHistory = [];
     }
+  }
+
+  private async handleGameEnd(game: Game, winningTeam: 'home' | 'away') {
+    // Get most recent odds
+    const latestOdds = await prisma.timeOdds.findFirst({
+      where: { gameId: game.id },
+      orderBy: { time: 'desc' }
+    });
+
+    if (!latestOdds) return;
+
+    // Get all active positions
+    const activePositions = await prisma.userGamePosition.findMany({
+      where: {
+        userGame: { gameId: game.id },
+        sellAmount: null,
+        sellPrice: null
+      }
+    });
+
+    // Process each position
+    for (const position of activePositions) {
+      const sellPrice = position.team === winningTeam 
+        ? Number(position.team === 'home' ? game.pregameHomePayout : game.pregameAwayPayout) / 100
+        : 0;
+
+      const sellAmount = Number(position.buyAmount) * sellPrice / Number(position.buyPrice);
+
+      await prisma.userGamePosition.update({
+        where: { id: position.id },
+        data: {
+          sellAmount,
+          sellPrice,
+          sellTime: new Date()
+        }
+      });
+    }
+
+    // Mark game as ended
+    await prisma.game.update({
+      where: { id: game.id },
+      data: { ended: true }
+    });
+
+    // Broadcast final leaderboard
+    await this.leaderboardService.calculateAndBroadcastLeaderboard(
+      game.id,
+      winningTeam === 'home' ? Number(game.pregameHomePayout) / 100 : 0,
+      winningTeam === 'away' ? Number(game.pregameAwayPayout) / 100 : 0
+    );
+
+    // Broadcast game end event
+    this.wsService.broadcastGameEnd();
   }
 }

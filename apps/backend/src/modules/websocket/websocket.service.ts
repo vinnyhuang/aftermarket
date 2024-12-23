@@ -64,4 +64,14 @@ export class WebSocketService {
       connection.socket.send(message);
     });
   }
+
+  public broadcastGameEnd() {
+    const message = JSON.stringify({
+      type: 'game_end'
+    });
+
+    this.connections.forEach((connection) => {
+      connection.socket.send(message);
+    });
+  }
 }

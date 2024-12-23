@@ -81,7 +81,7 @@ const GamePage = () => {
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
   const [oddsHistory, setOddsHistory] = useState<TimeOdds[]>([]);
-  const { data: activeGame } = trpc.admin.getActiveGame.useQuery();
+  const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
   const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
     { userId: user?.id || '', gameId: activeGame?.id || '' },
@@ -141,6 +141,8 @@ const GamePage = () => {
         setOddsHistory(data.data);
       } else if (data.type === 'leaderboard_update') {
         setLeaderboard(data.data);
+      } else if (data.type === 'game_ended') {
+        refetchActiveGame();
       }
     };
 
@@ -340,7 +342,7 @@ const GamePage = () => {
   };
 
   const hasGameStarted = new Date(activeGame.commenceTime) <= new Date();
-  // const hasGameStarted = true;
+  const hasGameEnded = activeGame.ended;
 
   const latestOdds = oddsHistory[oddsHistory.length - 1];
   const homePrice = calculateTeamPrice(
@@ -383,6 +385,13 @@ const GamePage = () => {
 
           {hasGameStarted && userGame && (
             <>
+              {hasGameEnded && (
+                <Box w="full" bg="blue.700" p={4} rounded="lg" textAlign="center">
+                  <Text color="white" fontSize="lg" fontWeight="bold">
+                    Game has ended. All positions have been settled.
+                  </Text>
+                </Box>
+              )}
               <Box textAlign="center" w="full">
                 <Heading size="lg" color="green.400">Your Balance</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
@@ -412,7 +421,7 @@ const GamePage = () => {
                   colorScheme="blue"
                   size="lg"
                   onClick={onBuyOpen}
-                  isDisabled={!!activePosition}
+                  isDisabled={!!activePosition || hasGameEnded}
                 >
                   Buy
                 </Button>
@@ -420,7 +429,7 @@ const GamePage = () => {
                   colorScheme="red"
                   size="lg"
                   onClick={onSellOpen}
-                  isDisabled={!activePosition}
+                  isDisabled={!activePosition || hasGameEnded}
                 >
                   Sell
                 </Button>
