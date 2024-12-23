@@ -1,0 +1,47 @@
+FROM node:18-slim AS base
+WORKDIR /app
+COPY package.json package-lock.json ./
+COPY nx.json ./
+COPY tsconfig.base.json ./
+COPY babel.config.json ./
+RUN npm install --legacy-peer-deps
+ARG VITE_APP_URL
+ARG VITE_WS_URL
+ENV VITE_APP_URL=$VITE_APP_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+
+# Development stage
+FROM base AS development
+COPY apps/frontend ./apps/frontend
+COPY apps/backend ./apps/backend
+EXPOSE 4200
+CMD ["npm", "run", "frontend:dev", "--", "--host", "0.0.0.0"]
+
+# Build stage
+FROM base AS builder
+COPY apps/frontend ./apps/frontend
+COPY apps/backend ./apps/backend
+
+# Generate Prisma client for types
+RUN cd apps/backend && npx prisma generate
+# Build frontend
+RUN npm run build:frontend
+
+# Production stage - just a static files container (will be served by Caddy through a shared volume)
+FROM alpine:latest AS final
+COPY --from=builder /app/dist/apps/frontend /app
+
+# Create entrypoint script
+# NOTE this clean up is used because the share volume between caddy and frontend container is not cleaned on subseqent builds
+RUN echo '#!/bin/bash\n\
+echo "Cleaning app directory..."\n\
+rm -rf /app/*\n\
+echo "Copying new build files..."\n\
+cp -r /tmp/build/* /app/\n\
+echo "Build files updated successfully"\n\
+# Keep container running\n\
+tail -f /dev/null' > /entrypoint.sh && \
+chmod +x /entrypoint.sh
+
+WORKDIR /app
+ENTRYPOINT ["/entrypoint.sh"]
