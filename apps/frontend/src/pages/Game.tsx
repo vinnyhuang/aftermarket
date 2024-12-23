@@ -477,13 +477,15 @@ const GamePage = () => {
           )}
 
           <Box w="full" bg="gray.800" p={6} rounded="lg">
-            <Heading size="lg" color="green.400" mb={4}>Game Overview</Heading>
+            <Heading size="lg" color="green.400" mb={4}>The Game</Heading>
             <VStack align="stretch" spacing={6}>
               <Box>
-                <Heading size="md" color="green.400" mb={2}>Prize</Heading>
+                <Heading size="md" color="green.400" mb={2}>Overview</Heading>
                 <List spacing={2}>
-                  <ListItem color="gray.300">• The trader who ends the game with the highest bankroll will win the $500 value prize.</ListItem>
-                  <ListItem color="gray.300">• The trader who ends the game with the highest comeback will win the $250 value prize.</ListItem>
+                  <ListItem color="gray.300">• Trade positions based on the real-time outcomes of the game!</ListItem>
+                  <ListItem color="gray.300">• Treat each team as a stock: a team's current trade value is proportional to its win probability.</ListItem>
+                  <ListItem color="gray.300">• The max (post-game) trade value for each team was determined by the pregame win probabilities. Higher pre-game win probability means lesser max value.</ListItem>
+                  <ListItem color="gray.300">• Your goal is to maximize your returns over the course of the game.</ListItem>
                 </List>
               </Box>
               <Box>
