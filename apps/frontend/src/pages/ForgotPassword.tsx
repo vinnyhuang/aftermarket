@@ -45,7 +45,7 @@ const ForgotPasswordPage = () => {
       <Container maxW="container.md" pt={8}>
         <VStack spacing={8}>
           <Box mb={6}>
-            <Image src={logo} alt="After Market Logo" boxSize="128px" objectFit="contain" />
+            <Image src={logo} alt="AfterMarket Logo" boxSize="128px" objectFit="contain" />
           </Box>
 
           <VStack spacing={2} textAlign="center" mb={8}>
@@ -131,7 +131,7 @@ const ForgotPasswordPage = () => {
           </Box>
 
           <Text color="white" fontSize="sm" mt={8}>
-            &copy; 2024 After Market. All rights reserved.
+            &copy; 2024 AfterMarket. All rights reserved.
           </Text>
         </VStack>
       </Container>

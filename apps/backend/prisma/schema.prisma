@@ -32,10 +32,12 @@ model Game {
   homeTeam           String     @db.VarChar(255)
   awayTeam           String     @db.VarChar(255)
   active             Boolean    @default(false)
+  ended              Boolean    @default(false)
   pregameHomePayout  Decimal    @db.Decimal(10,2)
   pregameAwayPayout  Decimal    @db.Decimal(10,2)
   pregameHomeWinProb Decimal    @db.Decimal(10,2)
   pregameAwayWinProb Decimal    @db.Decimal(10,2)
+  currentLeaderboard String?
   timeOdds           TimeOdds[]
   userGames          UserGame[]
 }

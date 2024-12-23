@@ -1,4 +1,4 @@
-import { adminProcedure, router } from '../../server/trpc';
+import { adminProcedure, procedure, router } from '../../server/trpc';
 import { z } from 'zod';
 import axios from 'axios';
 import { prisma } from '../../server/context';
@@ -50,7 +50,7 @@ export const adminRouter = router({
       }));
     }),
 
-  getActiveGame: adminProcedure
+  getActiveGame: procedure
     .query(async () => {
       const activeGame = await prisma.game.findFirst({
         where: {

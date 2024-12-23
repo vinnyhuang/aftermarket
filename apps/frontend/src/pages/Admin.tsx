@@ -166,9 +166,9 @@ const AdminPage = () => {
         <VStack spacing={8}>
           <HeaderButtons />
           <Box textAlign="center" mt={6}>
-            <Image src={logo} alt="After Market Logo" boxSize="128px" mx="auto" />
+            <Image src={logo} alt="AfterMarket Logo" boxSize="128px" mx="auto" />
             <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-              After Market Admin
+              AfterMarket Admin
             </Heading>
             <Text fontSize="lg" color="gray.300">
               Game Management Dashboard

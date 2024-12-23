@@ -66,7 +66,7 @@ const LoginPage = () => {
       <Container maxW="container.md" pt={8}>
         <VStack spacing={8}>
           <Box mb={6}>
-            <Image src={logo} alt="After Market Logo" boxSize="128px" objectFit="contain" />
+            <Image src={logo} alt="AfterMarket Logo" boxSize="128px" objectFit="contain" />
           </Box>
 
           <VStack spacing={2} textAlign="center" mb={8}>
@@ -76,7 +76,7 @@ const LoginPage = () => {
               sx={gradientText}
               animation={`${pulseAnimation} 2s infinite`}
             >
-              After Market
+              AfterMarket
             </Heading>
             <Text fontSize="lg" color="gray.300">
               Experience the ultimate live trading simulation!
@@ -155,7 +155,7 @@ const LoginPage = () => {
           </Box>
 
           <Text color="white" fontSize="sm" mt={8}>
-            &copy; 2024 After Market. All rights reserved.
+            &copy; 2024 AfterMarket. All rights reserved.
           </Text>
         </VStack>
       </Container>

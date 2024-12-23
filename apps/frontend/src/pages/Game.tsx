@@ -35,6 +35,7 @@ import logo from '@assets/logo.png';
 import { TimeOdds } from '@prisma/client';
 import { trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
+import { Leaderboard, LeaderboardEntry } from '@/components/Leaderboard/Leaderboard';
 
 ChartJS.register(
   CategoryScale,
@@ -53,6 +54,15 @@ const gradientText = {
   textTransform: 'uppercase'
 };
 
+const Header = () => (
+  <Box textAlign="center" mt={6}>
+    <Image src={logo} alt="AfterMarket Logo" boxSize="128px" mx="auto" />
+    <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
+      AfterMarket Dashboard
+    </Heading>
+  </Box>
+);
+
 const calculateTeamPrice = (
   currentWinProb: number | null,
   pregameWinProb: number | null
@@ -67,12 +77,13 @@ const GamePage = () => {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [countdown, setCountdown] = useState('');
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
   const [oddsHistory, setOddsHistory] = useState<TimeOdds[]>([]);
-  const { data: activeGame } = trpc.admin.getActiveGame.useQuery();
+  const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
-  const { data: userGame, refetch: refetchUserGame } = trpc.game.getUserGame.useQuery(
+  const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
     { userId: user?.id || '', gameId: activeGame?.id || '' },
     { enabled: !!user && !!activeGame }
   );
@@ -98,7 +109,7 @@ const GamePage = () => {
   });
 
   useEffect(() => {
-    if (user && activeGame && !userGame && !isCreatingGame) {
+    if (user && activeGame && !userGame && !isCreatingGame && !isLoadingUserGame) {
       const createGame = async () => {
         setIsCreatingGame(true);
         try {
@@ -114,105 +125,35 @@ const GamePage = () => {
       };
       createGame();
     }
-  }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isCreatingGame]);
+  }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isLoadingUserGame, isCreatingGame]);
 
-  const activePosition = positions?.find(p => !p.sellAmount && !p.sellPrice);
-  const availableBankroll = userGame?.bankroll
-    ? Number(userGame.bankroll) -
-      (positions?.reduce((sum, pos) => sum + Number(pos.buyAmount), 0) || 0) +
-      (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)
-    : 0;
+  useEffect(() => {
+    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    const websocket = new WebSocket(wsUrl);
 
-    const maxPayout = Math.max(
-      Number(activeGame?.pregameHomePayout || 0),
-      Number(activeGame?.pregameAwayPayout || 0)
-    );
-
-    const chartData = {
-      labels: oddsHistory.map(odds => {
-        const date = new Date(odds.time);
-        return date.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'America/New_York'
-        });
-      }),
-      datasets: [
-        {
-          label: `${activeGame?.homeTeam} Trade Value`,
-          data: oddsHistory.map(odds =>
-            calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
-          ),
-          borderColor: '#4caf50',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#4caf50',
-        },
-        {
-          label: `${activeGame?.awayTeam} Trade Value`,
-          data: oddsHistory.map(odds =>
-            calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
-          ),
-          borderColor: '#ff5722',
-          backgroundColor: 'transparent',
-          borderWidth: 2,
-          fill: false,
-          tension: 0.4,
-          pointRadius: 0,
-          pointHoverRadius: 6,
-          pointBackgroundColor: '#ff5722',
-        }
-      ]
+    websocket.onopen = () => {
+      console.log('WebSocket connection established successfully');
     };
 
-    const chartOptions = {
-      responsive: true,
-      interaction: {
-        intersect: false,
-        mode: 'index'
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          max: maxPayout,
-          ticks: {
-            callback: function(tickValue: number | string) {
-              return `$${tickValue}`;
-            },
-            color: 'rgb(156, 163, 175)'
-          },
-          grid: {
-            color: 'rgba(75, 85, 99, 0.2)'
-          }
-        },
-        x: {
-          ticks: {
-            color: 'rgb(156, 163, 175)'
-          },
-          grid: {
-            color: 'rgba(75, 85, 99, 0.2)'
-          }
-        }
-      },
-      plugins: {
-        tooltip: {
-          callbacks: {
-            label: function(context: TooltipItem<"line">) {
-              return `${context.dataset.label}: $${context.parsed.y.toFixed(2)}`;
-            }
-          }
-        },
-        legend: {
-          labels: {
-            color: 'rgb(156, 163, 175)'
-          }
-        }
+    websocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'odds_history') {
+        setOddsHistory(data.data);
+      } else if (data.type === 'leaderboard_update') {
+        setLeaderboard(data.data);
+      } else if (data.type === 'game_ended') {
+        refetchActiveGame();
       }
-    } as const;
+    };
+
+    websocket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      websocket.close();
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeGame?.commenceTime) return;
@@ -246,25 +187,137 @@ const GamePage = () => {
     return () => clearInterval(timer);
   }, [activeGame]);
 
-  useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-    const websocket = new WebSocket(wsUrl);
+  const HeaderButtons = () => (
+    <Box position="absolute" top={4} right={4}>
+      <Flex gap={2}>
+        {user?.role === 'admin' && (
+          <Button colorScheme="blue" onClick={() => navigate('/admin')}>
+            Admin
+          </Button>
+        )}
+        <Button colorScheme="blue" onClick={() => {
+          // TODO: Implement logout logic
+          navigate('/login');
+        }}>
+          Logout
+        </Button>
+      </Flex>
+    </Box>
+  );
 
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'odds_history') {
-        setOddsHistory(data.data);
+  if (!activeGame) {
+    return (
+      <Box bgGradient="linear(to-b, gray.900, gray.800, gray.900)" minH="100vh" p={4}>
+        <Container maxW="container.xl">
+          <HeaderButtons />
+          <VStack spacing={8}>
+            <Header />
+            <Heading size="lg" color="green.400" mt={8}>No Game Scheduled</Heading>
+            <Text fontSize="lg" color="gray.300" mt={4}>Please check back later</Text>
+          </VStack>
+        </Container>
+      </Box>
+    );
+  }
+
+  const activePosition = positions?.find(p => !p.sellAmount && !p.sellPrice);
+  const availableBankroll = userGame?.bankroll
+    ? Number((Number(userGame.bankroll) -
+      (positions?.reduce((sum, pos) => sum + Number(pos.buyAmount), 0) || 0) +
+      (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)).toFixed(2))
+    : 0;
+
+  const maxPayout = Math.max(
+    Number(activeGame?.pregameHomePayout || 0),
+    Number(activeGame?.pregameAwayPayout || 0)
+  );
+
+  const chartData = {
+    labels: oddsHistory.map(odds => {
+      const date = new Date(odds.time);
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/New_York'
+      });
+    }),
+    datasets: [
+      {
+        label: `${activeGame?.homeTeam} Trade Value`,
+        data: oddsHistory.map(odds =>
+          calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
+        ),
+        borderColor: '#4caf50',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#4caf50',
+      },
+      {
+        label: `${activeGame?.awayTeam} Trade Value`,
+        data: oddsHistory.map(odds =>
+          calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
+        ),
+        borderColor: '#ff5722',
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        fill: false,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#ff5722',
       }
-    };
+    ]
+  };
 
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    return () => {
-      websocket.close();
-    };
-  }, []);
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      intersect: false,
+      mode: 'index'
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        max: maxPayout,
+        ticks: {
+          callback: function(tickValue: number | string) {
+            return `$${tickValue}`;
+          },
+          color: 'rgb(156, 163, 175)'
+        },
+        grid: {
+          color: 'rgba(75, 85, 99, 0.2)'
+        }
+      },
+      x: {
+        ticks: {
+          color: 'rgb(156, 163, 175)'
+        },
+        grid: {
+          color: 'rgba(75, 85, 99, 0.2)'
+        }
+      }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context: TooltipItem<"line">) {
+            return `${context.dataset.label}: $${context.parsed.y.toFixed(2)}`;
+          }
+        }
+      },
+      legend: {
+        labels: {
+          color: 'rgb(156, 163, 175)'
+        }
+      }
+    }
+  } as const;
 
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
@@ -288,50 +341,8 @@ const GamePage = () => {
     });
   };
 
-  const HeaderButtons = () => (
-    <Box position="absolute" top={4} right={4}>
-      <Flex gap={2}>
-        {user?.role === 'admin' && (
-          <Button colorScheme="blue" onClick={() => navigate('/admin')}>
-            Admin
-          </Button>
-        )}
-        <Button colorScheme="blue" onClick={() => {
-          // TODO: Implement logout logic
-          navigate('/login');
-        }}>
-          Logout
-        </Button>
-      </Flex>
-    </Box>
-  );
-
-  const Header = () => (
-    <Box textAlign="center" mt={6}>
-      <Image src={logo} alt="After Market Logo" boxSize="128px" mx="auto" />
-      <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-        After Market Dashboard
-      </Heading>
-    </Box>
-  );
-
-  if (!activeGame) {
-    return (
-      <Box bgGradient="linear(to-b, gray.900, gray.800, gray.900)" minH="100vh" p={4}>
-        <Container maxW="container.xl">
-          <HeaderButtons />
-          <VStack spacing={8}>
-            <Header />
-            <Heading size="lg" color="green.400" mt={8}>No Game Scheduled</Heading>
-            <Text fontSize="lg" color="gray.300" mt={4}>Please check back later</Text>
-          </VStack>
-        </Container>
-      </Box>
-    );
-  }
-
-  // const hasGameStarted = new Date(activeGame.commenceTime) <= new Date();
-  const hasGameStarted = true;
+  const hasGameStarted = new Date(activeGame.commenceTime) <= new Date();
+  const hasGameEnded = activeGame.ended;
 
   const latestOdds = oddsHistory[oddsHistory.length - 1];
   const homePrice = calculateTeamPrice(
@@ -360,20 +371,27 @@ const GamePage = () => {
             </Box>
           )}
 
+          <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
+            <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
+            <VStack spacing={2}>
+              <Text color="gray.300">
+                Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+              </Text>
+              <Text color="gray.300">
+                Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
+              </Text>
+            </VStack>
+          </Box>
+
           {hasGameStarted && userGame && (
             <>
-              <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
-                <VStack spacing={2}>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+              {hasGameEnded && (
+                <Box w="full" bg="blue.700" p={4} rounded="lg" textAlign="center">
+                  <Text color="white" fontSize="lg" fontWeight="bold">
+                    Game has ended. All positions have been settled.
                   </Text>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
-                  </Text>
-                </VStack>
-              </Box>
-
+                </Box>
+              )}
               <Box textAlign="center" w="full">
                 <Heading size="lg" color="green.400">Your Balance</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
@@ -381,7 +399,9 @@ const GamePage = () => {
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" textAlign="center" mb={4}>Live Odds Chart</Heading>
-                <Line data={chartData} options={chartOptions} />
+                <Box h={["300px", "400px"]}>
+                  <Line data={chartData} options={chartOptions} />
+                </Box>
               </Box>
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
@@ -401,7 +421,7 @@ const GamePage = () => {
                   colorScheme="blue"
                   size="lg"
                   onClick={onBuyOpen}
-                  isDisabled={!!activePosition}
+                  isDisabled={!!activePosition || hasGameEnded}
                 >
                   Buy
                 </Button>
@@ -409,58 +429,63 @@ const GamePage = () => {
                   colorScheme="red"
                   size="lg"
                   onClick={onSellOpen}
-                  isDisabled={!activePosition}
+                  isDisabled={!activePosition || hasGameEnded}
                 >
                   Sell
                 </Button>
               </Flex>
+
+              <Box w="full" bg="gray.800" p={6} rounded="lg">
+                <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
+                {positions && positions.length > 0 ? (
+                  <Box overflowX="auto">
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th color="gray.400">Team</Th>
+                          <Th color="gray.400">Amount Paid</Th>
+                          <Th color="gray.400">Buy Price</Th>
+                          <Th color="gray.400">Amount Sold For</Th>
+                          <Th color="gray.400">Sell Price</Th>
+                        </Tr>
+                      </Thead>
+                      <Tbody>
+                        {positions.map(position => (
+                          <Tr key={position.id}>
+                            <Td color="white">
+                              {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
+                            </Td>
+                            <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
+                            <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
+                            <Td color="white">
+                              {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
+                            </Td>
+                            <Td color="white">
+                              {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
+                ) : (
+                  <Text color="gray.300">No positions yet</Text>
+                )}
+              </Box>
+              <Leaderboard entries={leaderboard} />
             </>
           )}
 
           <Box w="full" bg="gray.800" p={6} rounded="lg">
-            <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
-            {positions && positions.length > 0 ? (
-              <Table variant="simple">
-                <Thead>
-                  <Tr>
-                    <Th color="gray.400">Team</Th>
-                    <Th color="gray.400">Amount Paid</Th>
-                    <Th color="gray.400">Buy Price</Th>
-                    <Th color="gray.400">Amount Sold For</Th>
-                    <Th color="gray.400">Sell Price</Th>
-                  </Tr>
-                </Thead>
-                <Tbody>
-                  {positions.map(position => (
-                    <Tr key={position.id}>
-                      <Td color="white">
-                        {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
-                      </Td>
-                      <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
-                      <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
-                      <Td color="white">
-                        {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
-                      </Td>
-                      <Td color="white">
-                        {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
-                      </Td>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </Table>
-            ) : (
-              <Text color="gray.300">No positions yet</Text>
-            )}
-          </Box>
-
-          <Box w="full" bg="gray.800" p={6} rounded="lg">
-            <Heading size="lg" color="green.400" mb={4}>Game Overview</Heading>
+            <Heading size="lg" color="green.400" mb={4}>The Game</Heading>
             <VStack align="stretch" spacing={6}>
               <Box>
-                <Heading size="md" color="green.400" mb={2}>Prize</Heading>
+                <Heading size="md" color="green.400" mb={2}>Overview</Heading>
                 <List spacing={2}>
-                  <ListItem color="gray.300">• The trader who ends the game with the highest bankroll will win the $500 value prize.</ListItem>
-                  <ListItem color="gray.300">• The trader who ends the game with the highest comeback will win the $250 value prize.</ListItem>
+                  <ListItem color="gray.300">• Trade positions based on the real-time outcomes of the game!</ListItem>
+                  <ListItem color="gray.300">• Treat each team as a stock: a team's current trade value is proportional to its win probability.</ListItem>
+                  <ListItem color="gray.300">• The max (post-game) trade value for each team was determined by the pregame win probabilities. Higher pre-game win probability means lesser max value.</ListItem>
+                  <ListItem color="gray.300">• Your goal is to maximize your returns over the course of the game.</ListItem>
                 </List>
               </Box>
               <Box>
