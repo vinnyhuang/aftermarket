@@ -55,9 +55,9 @@ const gradientText = {
 
 const Header = () => (
   <Box textAlign="center" mt={6}>
-    <Image src={logo} alt="After Market Logo" boxSize="128px" mx="auto" />
+    <Image src={logo} alt="AfterMarket Logo" boxSize="128px" mx="auto" />
     <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-      After Market Dashboard
+      AfterMarket Dashboard
     </Heading>
   </Box>
 );
