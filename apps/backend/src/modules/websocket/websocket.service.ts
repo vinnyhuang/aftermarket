@@ -2,6 +2,7 @@ import { prisma } from '../../server/context';
 import { SocketStream } from '@fastify/websocket';
 import { TimeOdds } from '@prisma/client';
 import { FastifyInstance } from 'fastify';
+import { LeaderboardEntry } from '../leaderboard/leaderboard.types';
 
 export class WebSocketService {
   private connections: Set<SocketStream> = new Set();
@@ -46,6 +47,17 @@ export class WebSocketService {
     const message = JSON.stringify({
       type: 'odds_history',
       data: oddsHistory
+    });
+
+    this.connections.forEach((connection) => {
+      connection.socket.send(message);
+    });
+  }
+
+  public broadcastLeaderboard(leaderboard: Array<LeaderboardEntry>) {
+    const message = JSON.stringify({
+      type: 'leaderboard_update',
+      data: leaderboard
     });
 
     this.connections.forEach((connection) => {

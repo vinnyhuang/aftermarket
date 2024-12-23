@@ -2,18 +2,29 @@ import { Game, TimeOdds } from '@prisma/client';
 import { prisma } from '../../server/context';
 import { getOddsForGame } from '../odds/odds.service';
 import { WebSocketService } from '../websocket/websocket.service';
+import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
 const MONITOR_INTERVAL = 60000;
 const POLL_INTERVAL = 15000;
 const GAME_DURATION = 4 * 60 * 60 * 1000;
 
+const calculateTeamPrice = (
+  currentWinProb: number | null,
+  pregameWinProb: number | null
+): number => {
+  if (!currentWinProb || !pregameWinProb) return 0;
+  return (Number(currentWinProb) / Number(pregameWinProb)) * 100;
+};
+
 export class GameMonitor {
   private wsService: WebSocketService;
   private pollInterval: NodeJS.Timeout | null = null;
   private oddsHistory: Array<TimeOdds> = [];
+  private leaderboardService: LeaderboardService;
 
   constructor(wsService: WebSocketService) {
     this.wsService = wsService;
+    this.leaderboardService = new LeaderboardService(prisma, wsService);
     this.startMonitoring();
   }
 
@@ -74,8 +85,25 @@ export class GameMonitor {
 
       this.oddsHistory.push(timeOdds);
 
-      // Broadcast to clients
+      // Broadcast odds history
       this.wsService.broadcastOddsHistory(this.oddsHistory);
+
+        // Calculate current prices
+      const homePrice = calculateTeamPrice(
+        Number(odds.homeWinProb),
+        Number(game.pregameHomeWinProb)
+      );
+      const awayPrice = calculateTeamPrice(
+        Number(odds.awayWinProb),
+        Number(game.pregameAwayWinProb)
+      );
+
+      // Update leaderboard (async)
+      this.leaderboardService.calculateAndBroadcastLeaderboard(
+        game.id,
+        homePrice,
+        awayPrice
+      );
     };
 
     // Execute immediately

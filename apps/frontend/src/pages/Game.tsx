@@ -35,6 +35,7 @@ import logo from '@assets/logo.png';
 import { TimeOdds } from '@prisma/client';
 import { trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
+import { Leaderboard, LeaderboardEntry } from '@/components/Leaderboard/Leaderboard';
 
 ChartJS.register(
   CategoryScale,
@@ -76,12 +77,13 @@ const GamePage = () => {
   const [selectedTeam, setSelectedTeam] = useState('');
   const [countdown, setCountdown] = useState('');
   const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
   const [oddsHistory, setOddsHistory] = useState<TimeOdds[]>([]);
   const { data: activeGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
-  const { data: userGame, refetch: refetchUserGame } = trpc.game.getUserGame.useQuery(
+  const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
     { userId: user?.id || '', gameId: activeGame?.id || '' },
     { enabled: !!user && !!activeGame }
   );
@@ -107,7 +109,7 @@ const GamePage = () => {
   });
 
   useEffect(() => {
-    if (user && activeGame && !userGame && !isCreatingGame) {
+    if (user && activeGame && !userGame && !isCreatingGame && !isLoadingUserGame) {
       const createGame = async () => {
         setIsCreatingGame(true);
         try {
@@ -123,16 +125,22 @@ const GamePage = () => {
       };
       createGame();
     }
-  }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isCreatingGame]);
+  }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isLoadingUserGame, isCreatingGame]);
 
   useEffect(() => {
     const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
     const websocket = new WebSocket(wsUrl);
 
+    websocket.onopen = () => {
+      console.log('WebSocket connection established successfully');
+    };
+
     websocket.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'odds_history') {
         setOddsHistory(data.data);
+      } else if (data.type === 'leaderboard_update') {
+        setLeaderboard(data.data);
       }
     };
 
@@ -361,20 +369,20 @@ const GamePage = () => {
             </Box>
           )}
 
+          <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
+            <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
+            <VStack spacing={2}>
+              <Text color="gray.300">
+                Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+              </Text>
+              <Text color="gray.300">
+                Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
+              </Text>
+            </VStack>
+          </Box>
+
           {hasGameStarted && userGame && (
             <>
-              <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
-                <VStack spacing={2}>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
-                  </Text>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
-                  </Text>
-                </VStack>
-              </Box>
-
               <Box textAlign="center" w="full">
                 <Heading size="lg" color="green.400">Your Balance</Heading>
                 <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
@@ -421,38 +429,41 @@ const GamePage = () => {
               <Box w="full" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
                 {positions && positions.length > 0 ? (
-                  <Table variant="simple">
-                    <Thead>
-                      <Tr>
-                        <Th color="gray.400">Team</Th>
-                        <Th color="gray.400">Amount Paid</Th>
-                        <Th color="gray.400">Buy Price</Th>
-                        <Th color="gray.400">Amount Sold For</Th>
-                        <Th color="gray.400">Sell Price</Th>
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {positions.map(position => (
-                        <Tr key={position.id}>
-                          <Td color="white">
-                            {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
-                          </Td>
-                          <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
-                          <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
-                          <Td color="white">
-                            {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
-                          </Td>
-                          <Td color="white">
-                            {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
-                          </Td>
+                  <Box overflowX="auto">
+                    <Table variant="simple">
+                      <Thead>
+                        <Tr>
+                          <Th color="gray.400">Team</Th>
+                          <Th color="gray.400">Amount Paid</Th>
+                          <Th color="gray.400">Buy Price</Th>
+                          <Th color="gray.400">Amount Sold For</Th>
+                          <Th color="gray.400">Sell Price</Th>
                         </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
+                      </Thead>
+                      <Tbody>
+                        {positions.map(position => (
+                          <Tr key={position.id}>
+                            <Td color="white">
+                              {position.team === 'home' ? activeGame?.homeTeam : activeGame?.awayTeam}
+                            </Td>
+                            <Td color="white">${Number(position.buyAmount).toFixed(2)}</Td>
+                            <Td color="white">${Number(position.buyPrice).toFixed(2)}</Td>
+                            <Td color="white">
+                              {position.sellAmount ? `$${Number(position.sellAmount).toFixed(2)}` : '-'}
+                            </Td>
+                            <Td color="white">
+                              {position.sellPrice ? `$${Number(position.sellPrice).toFixed(2)}` : '-'}
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </Table>
+                  </Box>
                 ) : (
                   <Text color="gray.300">No positions yet</Text>
                 )}
               </Box>
+              <Leaderboard entries={leaderboard} />
             </>
           )}
 
