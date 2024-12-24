@@ -134,14 +134,6 @@ export class GameMonitor {
   }
 
   private async handleGameEnd(game: Game, winningTeam: 'home' | 'away') {
-    // Get most recent odds
-    const latestOdds = await prisma.timeOdds.findFirst({
-      where: { gameId: game.id },
-      orderBy: { time: 'desc' }
-    });
-
-    if (!latestOdds) return;
-
     // Get all active positions
     const activePositions = await prisma.userGamePosition.findMany({
       where: {
@@ -168,6 +160,25 @@ export class GameMonitor {
         }
       });
     }
+
+    // Add final TimeOdds record with winning team at max payout and losing team at 0
+    await prisma.timeOdds.create({
+      data: {
+        gameId: game.id,
+        time: new Date(),
+        homeWinProb: winningTeam === 'home' ? 100 : 0,
+        awayWinProb: winningTeam === 'away' ? 100 : 0,
+        homePrice: winningTeam === 'home' ? Number(game.pregameHomePayout) : 0,
+        awayPrice: winningTeam === 'away' ? Number(game.pregameAwayPayout) : 0
+      }
+    });
+
+    // Get full odds history and broadcast one final time
+    const finalOddsHistory = await prisma.timeOdds.findMany({
+      where: { gameId: game.id },
+      orderBy: { time: 'asc' }
+    });
+    this.wsService.broadcastOddsHistory(finalOddsHistory);
 
     // Mark game as ended
     await prisma.game.update({
