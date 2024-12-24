@@ -39,7 +39,7 @@ export const getOddsForGame = async (game: { sportKey: string; id: string; homeT
 
 export const getGameScore = async (game: { sportKey: string; id: string }) => {
   const apiKey = process.env.THE_ODDS_API_KEY;
-  const url = `https://api.the-odds-api.com/v4/sports/${game.sportKey}/scores?apiKey=${apiKey}&eventIds=${game.id.replace(/-/g, '')}`;
+  const url = `https://api.the-odds-api.com/v4/sports/${game.sportKey}/scores?apiKey=${apiKey}&eventIds=${game.id.replace(/-/g, '')}&daysFrom=3`;
   
   try {
     const response = await axios.get(url);
