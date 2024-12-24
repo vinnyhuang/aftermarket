@@ -41,4 +41,6 @@ Thumbs.db
 # Env files
 .env
 .ssh.env
+.ssh.prod.env
+.ssh.dev.env
 .nx/cache
