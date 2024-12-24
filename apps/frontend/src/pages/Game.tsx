@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -187,6 +187,23 @@ const GamePage = () => {
     return () => clearInterval(timer);
   }, [activeGame]);
 
+  const homePriceHistory = useMemo(() => 
+    oddsHistory.map(odds =>
+      calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
+    ), [oddsHistory, activeGame?.pregameHomeWinProb]
+  );
+
+  const awayPriceHistory = useMemo(() =>
+    oddsHistory.map(odds =>
+      calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
+    ), [oddsHistory, activeGame?.pregameAwayWinProb]
+  );
+
+  const maxY = useMemo(() => 
+    Math.ceil(Math.max(...homePriceHistory, ...awayPriceHistory) / 10) * 10,
+    [homePriceHistory, awayPriceHistory]
+  );
+
   const HeaderButtons = () => (
     <Box position="absolute" top={4} right={4}>
       <Flex gap={2}>
@@ -227,11 +244,6 @@ const GamePage = () => {
       (positions?.reduce((sum, pos) => sum + (Number(pos.sellAmount) || 0), 0) || 0)).toFixed(2))
     : 0;
 
-  const maxPayout = Math.max(
-    Number(activeGame?.pregameHomePayout || 0),
-    Number(activeGame?.pregameAwayPayout || 0)
-  );
-
   const chartData = {
     labels: oddsHistory.map(odds => {
       const date = new Date(odds.time);
@@ -244,9 +256,7 @@ const GamePage = () => {
     datasets: [
       {
         label: `${activeGame?.homeTeam} Trade Value`,
-        data: oddsHistory.map(odds =>
-          calculateTeamPrice(Number(odds.homeWinProb), Number(activeGame?.pregameHomeWinProb || 1))
-        ),
+        data: homePriceHistory,
         borderColor: '#4caf50',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -258,9 +268,7 @@ const GamePage = () => {
       },
       {
         label: `${activeGame?.awayTeam} Trade Value`,
-        data: oddsHistory.map(odds =>
-          calculateTeamPrice(Number(odds.awayWinProb), Number(activeGame?.pregameAwayWinProb || 1))
-        ),
+        data: awayPriceHistory,
         borderColor: '#ff5722',
         backgroundColor: 'transparent',
         borderWidth: 2,
@@ -283,7 +291,7 @@ const GamePage = () => {
     scales: {
       y: {
         beginAtZero: true,
-        max: maxPayout,
+        max: maxY,
         ticks: {
           callback: function(tickValue: number | string) {
             return `$${tickValue}`;
