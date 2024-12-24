@@ -388,7 +388,7 @@ const GamePage = () => {
               {hasGameEnded && (
                 <Box w="full" bg="blue.700" p={4} rounded="lg" textAlign="center">
                   <Text color="white" fontSize="lg" fontWeight="bold">
-                    Game has ended. All positions have been settled.
+                    Game has ended. All positions have been settled. Scroll down for the final leaderboard!
                   </Text>
                 </Box>
               )}
