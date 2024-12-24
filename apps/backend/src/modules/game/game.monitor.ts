@@ -81,29 +81,32 @@ export class GameMonitor {
       }
 
       const odds = await getOddsForGame(game);
-      if (!odds) return;
-
-      // Save to database
-      const timeOdds = await prisma.timeOdds.create({
-        data: {
-          gameId: game.id,
-          time: new Date().toISOString(),
-          ...odds
-        }
-      });
-
-      this.oddsHistory.push(timeOdds);
+      let timeOdds;
+      if (odds) {
+        // Save to database
+        timeOdds = await prisma.timeOdds.create({
+          data: {
+            gameId: game.id,
+            time: new Date().toISOString(),
+            ...odds
+          }
+        });
+  
+        this.oddsHistory.push(timeOdds);
+      } else {
+        timeOdds = this.oddsHistory[this.oddsHistory.length - 1];
+      }
 
       // Broadcast odds history
       this.wsService.broadcastOddsHistory(this.oddsHistory);
 
       // Calculate current prices
       const homePrice = calculateTeamPrice(
-        Number(odds.homeWinProb),
+        Number(timeOdds.homeWinProb),
         Number(game.pregameHomeWinProb)
       );
       const awayPrice = calculateTeamPrice(
-        Number(odds.awayWinProb),
+        Number(timeOdds.awayWinProb),
         Number(game.pregameAwayWinProb)
       );
 
