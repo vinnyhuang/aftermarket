@@ -10,7 +10,9 @@ set -u
 ## TODO: ADD SERVER INSTALLATION FUNCTIONALITY WITH ANSIBLE.
 
 # Configuration
-CONFIG_FILE=".ssh.env"
+DEFAULT_ENV="dev"
+CONFIG_FILE_DEV=".ssh.dev.env"
+CONFIG_FILE_PROD=".ssh.prod.env"
 DOCKER_COMPOSE_FILE="docker/docker-compose.yaml"
 
 log() {
@@ -26,16 +28,44 @@ check_requirements() {
     command -v ssh >/dev/null 2>&1 || error_exit "SSH client is not installed"
 }
 
+get_environment() {
+    case "${1:-}" in
+        --prod)
+            echo "prod"
+            ;;
+        --dev|"")
+            echo "dev"
+            ;;
+        *)
+            error_exit "Invalid environment flag. Use --dev or --prod"
+            ;;
+    esac
+}
+
+get_config_file() {
+    case "$1" in
+        prod)
+            echo "$CONFIG_FILE_PROD"
+            ;;
+        dev)
+            echo "$CONFIG_FILE_DEV"
+            ;;
+    esac
+}
+
 load_config() {
-    if [ ! -f "$CONFIG_FILE" ]; then
-        error_exit "Please create a $CONFIG_FILE file with the required variables."
+    local env=$1
+    local config_file=$(get_config_file "$env")
+
+    if [ ! -f "$config_file" ]; then
+        error_exit "Configuration file $config_file not found.\n\nPlease create it by copying the example file:\ncp .ssh.example.env $config_file\n\nThen update the values in $config_file with your $env server details:\n- SSH_HOST: Your $env server hostname\n- SSH_USER: SSH username\n- SSH_KEY: Path to your SSH private key\n- REMOTE_PROJECT_PATH: Path to project on remote server"
     fi
-    . "./$CONFIG_FILE"
+    . "./$config_file"
 
     # Validate required environment variables
     for var in SSH_USER SSH_HOST SSH_KEY REMOTE_PROJECT_PATH; do
         if [ -z "$(eval echo \$$var)" ]; then
-            error_exit "$var must be set in $CONFIG_FILE"
+            error_exit "$var must be set in $config_file"
         fi
     done
 }
@@ -48,8 +78,25 @@ test_ssh_connection() {
 }
 
 update() {
-    log "Updating application..."
-    load_config
+    local env=$(get_environment "${1:-}")
+    load_config "$env"
+    # Add confirmation for production deployments
+    if [ "$env" = "prod" ]; then
+        echo -e "\n[WARNING]: You are about to deploy to PRODUCTION environment!"
+        echo -e "Server: $SSH_HOST"
+        echo -e "\nAre you sure you want to continue? (y/N): "
+        read -r confirm
+        case "$confirm" in
+            [Yy]*)
+                echo "Proceeding with production deployment..."
+                ;;
+            *)
+                error_exit "Deployment cancelled"
+                ;;
+        esac
+    fi
+
+    log "Updating application in $env environment..."
     test_ssh_connection
 
     # First, update the remote repository to get all new branches
@@ -122,8 +169,9 @@ EOF
 }
 
 check_status() {
-    log "Checking service status..."
-    load_config
+    local env=$(get_environment "${1:-}")
+    log "Checking service status in $env environment..."
+    load_config "$env"
     test_ssh_connection
     ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
         "cd ${REMOTE_PROJECT_PATH} && docker compose -f $DOCKER_COMPOSE_FILE ps" || \
@@ -131,11 +179,18 @@ check_status() {
 }
 
 view_logs() {
-    log "Viewing logs..."
-    load_config
+
+    if [ -z "${1:-}" ]; then
+        echo "Usage: $0 logs [service] [--dev|--prod]"
+        exit 1
+    fi
+
+    local env=$(get_environment "${2:-}")
+    log "Viewing logs in $env environment..."
+    load_config "$env"
     test_ssh_connection
 
-    SERVICE=$2
+    SERVICE=$1
     if [ -n "$SERVICE" ]; then
         ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
             "cd ${REMOTE_PROJECT_PATH} && docker compose -f $DOCKER_COMPOSE_FILE logs -f $SERVICE" || \
@@ -150,22 +205,29 @@ view_logs() {
 # Main script
 check_requirements
 
-case "$1" in
+case "${1:-}" in
     update)
-        update
+        shift  # Remove 'update' from arguments
+        update "$@"
         ;;
     status)
-        check_status
+        shift  # Remove 'status' from arguments
+        check_status "$@"
         ;;
     logs)
+        shift  # Remove 'logs' from arguments
         view_logs "$@"
         ;;
     *)
-        echo "Usage: $0 [command]"
+        echo "Usage: $0 [command] [--dev|--prod] [options]"
         echo "Commands:"
         echo "  update              Update existing installation"
         echo "  status             Check services status"
         echo "  logs [service]     View service logs (optional: specify service name)"
+        echo ""
+        echo "Environments:"
+        echo "  --dev              Deploy to development environment (default)"
+        echo "  --prod             Deploy to production environment"
         exit 1
         ;;
 esac
