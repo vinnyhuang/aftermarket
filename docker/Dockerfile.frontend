@@ -21,27 +21,17 @@ CMD ["npm", "run", "frontend:dev", "--", "--host", "0.0.0.0"]
 FROM base AS builder
 COPY apps/frontend ./apps/frontend
 COPY apps/backend ./apps/backend
-
 # Generate Prisma client for types
 RUN cd apps/backend && npx prisma generate
 # Build frontend
 RUN npm run build:frontend
 
-# Production stage - just a static files container (will be served by Caddy through a shared volume)
-FROM alpine:latest AS final
-COPY --from=builder /app/dist/apps/frontend /app
-
-# Create entrypoint script
-# NOTE this clean up is used because the share volume between caddy and frontend container is not cleaned on subseqent builds
-RUN echo '#!/bin/bash\n\
-echo "Cleaning app directory..."\n\
-rm -rf /app/*\n\
-echo "Copying new build files..."\n\
-cp -r /tmp/build/* /app/\n\
-echo "Build files updated successfully"\n\
-# Keep container running\n\
-tail -f /dev/null' > /entrypoint.sh && \
-chmod +x /entrypoint.sh
-
-WORKDIR /app
-ENTRYPOINT ["/entrypoint.sh"]
+# Production stage - using Caddy
+FROM caddy:2-alpine AS final
+COPY --from=builder /app/dist/apps/frontend /usr/share/caddy
+RUN printf ":80 {\n\
+    root * /usr/share/caddy\n\
+    try_files {path} /index.html\n\
+    file_server\n\
+}" > /etc/caddy/Caddyfile
+EXPOSE 80
