@@ -169,7 +169,7 @@ EOF
 }
 
 check_status() {
-    local env=$(get_environment "$1")
+    local env=$(get_environment "${1:-}")
     log "Checking service status in $env environment..."
     load_config "$env"
     test_ssh_connection
@@ -179,12 +179,18 @@ check_status() {
 }
 
 view_logs() {
-    local env=$(get_environment "$1")
+
+    if [ -z "${1:-}" ]; then
+        echo "Usage: $0 logs [service] [--dev|--prod]"
+        exit 1
+    fi
+
+    local env=$(get_environment "${2:-}")
     log "Viewing logs in $env environment..."
     load_config "$env"
     test_ssh_connection
 
-    SERVICE=$3
+    SERVICE=$1
     if [ -n "$SERVICE" ]; then
         ssh -i "$SSH_KEY" "$SSH_USER@$SSH_HOST" \
             "cd ${REMOTE_PROJECT_PATH} && docker compose -f $DOCKER_COMPOSE_FILE logs -f $SERVICE" || \
@@ -199,7 +205,7 @@ view_logs() {
 # Main script
 check_requirements
 
-case "$1" in
+case "${1:-}" in
     update)
         shift  # Remove 'update' from arguments
         update "$@"
