@@ -12,7 +12,6 @@ services:
       - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-      - frontend_static:/srv/frontend:ro
     environment:
       - DOMAIN=${DOMAIN:-localhost}
       - ACME_EMAIL=${ACME_EMAIL:-your@email.com}
@@ -79,8 +78,6 @@ services:
     environment:
       - VITE_APP_URL=${VITE_APP_URL}
       - NODE_ENV=${NODE_ENV:-local}
-    volumes:
-      - frontend_static:/app:ro
     depends_on:
       - backend
     networks:
@@ -90,7 +87,6 @@ volumes:
   postgres:
   caddy_data:
   caddy_config:
-  frontend_static:
 
 networks:
   app-network:
