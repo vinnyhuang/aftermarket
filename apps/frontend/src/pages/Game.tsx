@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -36,6 +36,7 @@ import { TimeOdds } from '@prisma/client';
 import { trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
 import { Leaderboard, LeaderboardEntry } from '@/components/Leaderboard/Leaderboard';
+import { toast } from 'react-toastify';
 
 ChartJS.register(
   CategoryScale,
@@ -73,14 +74,17 @@ const calculateTeamPrice = (
 
 const GamePage = () => {
   const navigate = useNavigate();
-  const [buyAmount, setBuyAmount] = useState(1);
-  const [selectedTeam, setSelectedTeam] = useState('');
-  const [countdown, setCountdown] = useState('');
-  const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [oddsHistory, setOddsHistory] = useState<TimeOdds[]>([]);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [countdown, setCountdown] = useState('');
+  const [selectedTeam, setSelectedTeam] = useState('');
+  const [buyAmount, setBuyAmount] = useState(1);
+  const [isCreatingGame, setIsCreatingGame] = useState(false);
+  const [isConnectedWS, setIsConnectedWS] = useState(false);
+  const [lastUpdateTimeWS, setLastUpdateTimeWS] = useState<number | null>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
-  const [oddsHistory, setOddsHistory] = useState<TimeOdds[]>([]);
   const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
   const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
@@ -108,6 +112,76 @@ const GamePage = () => {
     }
   });
 
+  const connectWebSocket = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  
+    const wsUrl = import.meta.env.VITE_WS_URL || 
+      `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    
+    const ws = new WebSocket(wsUrl);
+    wsRef.current = ws;
+  
+    ws.onopen = () => {
+      console.log('WebSocket connection established');
+      setIsConnectedWS(true);
+    };
+  
+    ws.onclose = () => {
+      console.log('WebSocket connection closed');
+      setIsConnectedWS(false);
+    };
+  
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'odds_history') {
+        setOddsHistory(data.data);
+        setLastUpdateTimeWS(Date.now());
+      } else if (data.type === 'leaderboard_update') {
+        setLeaderboard(data.data);
+      } else if (data.type === 'game_end') {
+        refetchActiveGame();
+      }
+    };
+  
+    ws.onerror = (error) => {
+      console.error('WebSocket error:', error);
+      setIsConnectedWS(false);
+    };
+  }, [refetchActiveGame]);
+
+  // Initial connection
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [connectWebSocket]);
+
+  // Handle visibility change
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Check if connection is stale (no updates in last 30 seconds)
+        const isStale = lastUpdateTimeWS && Date.now() - lastUpdateTimeWS > 30000;
+        
+        if (!isConnectedWS || isStale) {
+          if (wsRef.current) {
+            wsRef.current.close();
+          }
+          connectWebSocket();
+          toast.info('Reconnecting to server...');
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isConnectedWS, lastUpdateTimeWS, connectWebSocket]);
+
   useEffect(() => {
     if (user && activeGame && !userGame && !isCreatingGame && !isLoadingUserGame) {
       const createGame = async () => {
@@ -126,34 +200,6 @@ const GamePage = () => {
       createGame();
     }
   }, [user, activeGame, userGame, createUserGameMutation, refetchUserGame, refetchPositions, isLoadingUserGame, isCreatingGame]);
-
-  useEffect(() => {
-    const wsUrl = import.meta.env.VITE_WS_URL || `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
-    const websocket = new WebSocket(wsUrl);
-
-    websocket.onopen = () => {
-      console.log('WebSocket connection established successfully');
-    };
-
-    websocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === 'odds_history') {
-        setOddsHistory(data.data);
-      } else if (data.type === 'leaderboard_update') {
-        setLeaderboard(data.data);
-      } else if (data.type === 'game_ended') {
-        refetchActiveGame();
-      }
-    };
-
-    websocket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    return () => {
-      websocket.close();
-    };
-  }, []);
 
   useEffect(() => {
     if (!activeGame?.commenceTime) return;
@@ -329,6 +375,17 @@ const GamePage = () => {
 
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
+    
+    // Check for stale data
+    if (!isConnectedWS) {
+      toast.error('Cannot trade: No connection to server');
+      return;
+    }
+
+    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
+      toast.error('Cannot trade: Market data is stale');
+      return;
+    }
 
     buyPositionMutation.mutate({
       userGameId: userGame.id,
@@ -340,6 +397,17 @@ const GamePage = () => {
   
   const handleSell = (positionId: string) => {
     if (!activePosition) return;
+
+    // Check for stale data
+    if (!isConnectedWS) {
+      toast.error('Cannot trade: No connection to server');
+      return;
+    }
+
+    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
+      toast.error('Cannot trade: Market data is stale');
+      return;
+    }
 
     const sellPrice = activePosition.team === 'home' ? homePrice : awayPrice;
     sellPositionMutation.mutate({
