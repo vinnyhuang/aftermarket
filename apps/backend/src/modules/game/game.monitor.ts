@@ -42,7 +42,6 @@ export class GameMonitor {
       const gameTime = new Date(activeGame.commenceTime);
   
       if (now >= gameTime && !activeGame.ended) {
-        this.startPolling(activeGame);
         // Pull all TimeOdds for active game and set oddsHistory
         this.oddsHistory = await prisma.timeOdds.findMany({
           where: {
@@ -52,6 +51,7 @@ export class GameMonitor {
             time: 'asc'
           }
         });
+        this.startPolling(activeGame);
       } else {
         this.stopPolling();
       }
@@ -89,6 +89,19 @@ export class GameMonitor {
             ...odds
           }
         });
+
+        // If this is the start of the game, update pregame payout
+        if (this.oddsHistory.length === 0) {
+          await prisma.game.update({
+            where: { id: game.id },
+            data: {
+              pregameHomePayout: odds.homePrice * 100,
+              pregameAwayPayout: odds.awayPrice * 100,
+              pregameHomeWinProb: odds.homeWinProb,
+              pregameAwayWinProb: odds.awayWinProb
+            }
+          });
+        }
   
         this.oddsHistory.push(timeOdds);
       } else {
