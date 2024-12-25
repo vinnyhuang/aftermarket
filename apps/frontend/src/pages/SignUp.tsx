@@ -1,9 +1,10 @@
 import { Box, Button, Container, Flex, FormControl, FormLabel, Heading, Image, Input, Link, Stack, Text, VStack, keyframes, Select } from '@chakra-ui/react';
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Link as RouterLink } from 'react-router-dom';
 import { trpc } from '@utils/trpc';
 import { toast } from 'react-toastify';
 import logo from '@assets/logo.png';
+import { useSignIn } from '@/hooks/useSignIn';
 
 const pulseAnimation = keyframes`
   0% { opacity: 1; }
@@ -29,7 +30,6 @@ const gradientButton = {
 };
 
 const SignUpPage = () => {
-  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
@@ -37,11 +37,11 @@ const SignUpPage = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralType, setReferralType] = useState('');
   const [referralName, setReferralName] = useState('');
+  const signInMutation = useSignIn();
 
   const createUserMutation = trpc.users.createUser.useMutation({
     onSuccess: () => {
-      toast.success('Account created successfully!');
-      navigate('/login');
+      signInMutation.mutate({ email, password });
     },
     onError: (error) => {
       toast.error(error.message);
