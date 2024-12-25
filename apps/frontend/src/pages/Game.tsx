@@ -472,40 +472,12 @@ const GamePage = () => {
                   </Text>
                 </Box>
               )}
-              <Box textAlign="center" w="full">
-                <Heading size="lg" color="green.400">Your Balance</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
-              </Box>
-
-              <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Current Prices</Heading>
-                <Flex justify="space-around">
-                  <Text color="gray.300">
-                    {activeGame.homeTeam}: ${homePrice.toFixed(2)}
-                  </Text>
-                  <Text color="gray.300">
-                    {activeGame.awayTeam}: ${awayPrice.toFixed(2)}
-                  </Text>
-                </Flex>
-              </Box>
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" textAlign="center" mb={4}>Live Game Chart</Heading>
                 <Box h={["300px", "400px"]}>
                   <Line data={chartData} options={chartOptions} />
                 </Box>
-              </Box>
-
-              <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
-                <VStack spacing={2}>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
-                  </Text>
-                  <Text color="gray.300">
-                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
-                  </Text>
-                </VStack>
               </Box>
 
               <Flex gap={4} justifyContent="center">
@@ -526,6 +498,35 @@ const GamePage = () => {
                   Sell
                 </Button>
               </Flex>
+
+              <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
+                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Current Prices</Heading>
+                <Flex justify="space-around">
+                  <Text color="gray.300">
+                    {activeGame.homeTeam}: ${homePrice.toFixed(2)}
+                  </Text>
+                  <Text color="gray.300">
+                    {activeGame.awayTeam}: ${awayPrice.toFixed(2)}
+                  </Text>
+                </Flex>
+              </Box>
+
+              <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
+                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
+                <VStack spacing={2}>
+                  <Text color="gray.300">
+                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+                  </Text>
+                  <Text color="gray.300">
+                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
+                  </Text>
+                </VStack>
+              </Box>
+
+              <Box textAlign="center" w="full">
+                <Heading size="lg" color="green.400">Your Balance</Heading>
+                <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
+              </Box>
 
               <Box w="full" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>
