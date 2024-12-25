@@ -127,18 +127,20 @@ const GamePage = () => {
     ws.onopen = () => {
       console.log('WebSocket connection established');
       setIsConnectedWS(true);
-      
-      // Start ping interval
-      if (pingIntervalRef.current) {
-        clearInterval(pingIntervalRef.current);
-      }
-      
-      pingIntervalRef.current = setInterval(() => {
+
+      const sendPing = () => {
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({ type: 'ping' }));
           setLastPingTime(Date.now());
         }
-      }, 15000); // Send ping every 15 seconds
+      };
+      sendPing();
+
+      // Start ping interval
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+      pingIntervalRef.current = setInterval(sendPing, 15000); // Send ping every 15 seconds
     };
   
     ws.onclose = () => {
@@ -184,6 +186,7 @@ const GamePage = () => {
 
   useEffect(() => {
     const checkConnection = () => {
+      console.log('checking connection', isConnectedWS, lastPingTime);
       const now = Date.now();
       const pingTimeout = lastPingTime && now - lastPingTime > 45000;
   
@@ -191,6 +194,7 @@ const GamePage = () => {
         if (wsRef.current) {
           wsRef.current.close();
         }
+        toast.info('Reconnecting to server...');
         connectWebSocket();
       }
     };
@@ -398,8 +402,9 @@ const GamePage = () => {
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
     
-    if (!isConnectedWS) {
-      toast.error('Cannot trade: No connection to server');
+    const now = Date.now();
+    if (!isConnectedWS || !lastPingTime || now - lastPingTime > 45000) {
+      toast.error('Cannot trade: Waiting to reconnect to server');
       return;
     }
 
@@ -414,8 +419,9 @@ const GamePage = () => {
   const handleSell = (positionId: string) => {
     if (!activePosition) return;
 
-    if (!isConnectedWS) {
-      toast.error('Cannot trade: No connection to server');
+    const now = Date.now();
+    if (!isConnectedWS || !lastPingTime || now - lastPingTime > 45000) {
+      toast.error('Cannot trade: Waiting to reconnect to server');
       return;
     }
 
