@@ -144,7 +144,7 @@ export class GameMonitor {
     // Process each position
     for (const position of activePositions) {
       const sellPrice = position.team === winningTeam 
-        ? Number(position.team === 'home' ? game.pregameHomePayout : game.pregameAwayPayout) / 100
+        ? Number(position.team === 'home' ? game.pregameHomePayout : game.pregameAwayPayout)
         : 0;
 
       const sellAmount = Number(position.buyAmount) * sellPrice / Number(position.buyPrice);
@@ -187,8 +187,8 @@ export class GameMonitor {
     // Broadcast final leaderboard
     await this.leaderboardService.calculateAndBroadcastLeaderboard(
       game.id,
-      winningTeam === 'home' ? Number(game.pregameHomePayout) / 100 : 0,
-      winningTeam === 'away' ? Number(game.pregameAwayPayout) / 100 : 0
+      winningTeam === 'home' ? Number(game.pregameHomePayout) : 0,
+      winningTeam === 'away' ? Number(game.pregameAwayPayout) : 0
     );
 
     // Broadcast game end event
