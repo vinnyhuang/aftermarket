@@ -6,7 +6,6 @@ import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
 const MONITOR_INTERVAL = 60000;
 const POLL_INTERVAL = 15000;
-const GAME_DURATION = 4 * 60 * 60 * 1000;
 
 const calculateTeamPrice = (
   currentWinProb: number | null,
