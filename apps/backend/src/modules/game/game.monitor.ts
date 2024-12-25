@@ -41,9 +41,8 @@ export class GameMonitor {
   
       const now = new Date();
       const gameTime = new Date(activeGame.commenceTime);
-      const fourHoursLater = new Date(gameTime.getTime() + GAME_DURATION);
   
-      if (now >= gameTime && now <= fourHoursLater) {
+      if (now >= gameTime && !activeGame.ended) {
         this.startPolling(activeGame);
         // Pull all TimeOdds for active game and set oddsHistory
         this.oddsHistory = await prisma.timeOdds.findMany({
