@@ -82,7 +82,6 @@ const GamePage = () => {
   const [buyAmount, setBuyAmount] = useState(1);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [isConnectedWS, setIsConnectedWS] = useState(false);
-  const [lastUpdateTimeWS, setLastUpdateTimeWS] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [lastPingTime, setLastPingTime] = useState<number | null>(null);
@@ -157,7 +156,6 @@ const GamePage = () => {
         setLastPingTime(Date.now());
       } else if (data.type === 'odds_history') {
         setOddsHistory(data.data);
-        setLastUpdateTimeWS(Date.now());
       } else if (data.type === 'leaderboard_update') {
         setLeaderboard(data.data);
       } else if (data.type === 'game_end') {
@@ -187,10 +185,9 @@ const GamePage = () => {
   useEffect(() => {
     const checkConnection = () => {
       const now = Date.now();
-      const isStale = lastUpdateTimeWS && now - lastUpdateTimeWS > 30000;
       const pingTimeout = lastPingTime && now - lastPingTime > 45000;
   
-      if (!isConnectedWS || isStale || pingTimeout) {
+      if (!isConnectedWS || pingTimeout) {
         if (wsRef.current) {
           wsRef.current.close();
         }
@@ -200,30 +197,7 @@ const GamePage = () => {
   
     const intervalId = setInterval(checkConnection, 5000);
     return () => clearInterval(intervalId);
-  }, [isConnectedWS, lastUpdateTimeWS, lastPingTime, connectWebSocket]);
-
-  // Handle visibility change
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Check if connection is stale (no updates in last 30 seconds)
-        const isStale = lastUpdateTimeWS && Date.now() - lastUpdateTimeWS > 30000;
-        
-        if (!isConnectedWS || isStale) {
-          if (wsRef.current) {
-            wsRef.current.close();
-          }
-          connectWebSocket();
-          toast.info('Reconnecting to server...');
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isConnectedWS, lastUpdateTimeWS, connectWebSocket]);
+  }, [isConnectedWS, lastPingTime, connectWebSocket]);
 
   useEffect(() => {
     if (user && activeGame && !userGame && !isCreatingGame && !isLoadingUserGame) {
@@ -424,14 +398,8 @@ const GamePage = () => {
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
     
-    // Check for stale data
     if (!isConnectedWS) {
       toast.error('Cannot trade: No connection to server');
-      return;
-    }
-
-    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
-      toast.error('Cannot trade: Market data is stale');
       return;
     }
 
@@ -446,14 +414,8 @@ const GamePage = () => {
   const handleSell = (positionId: string) => {
     if (!activePosition) return;
 
-    // Check for stale data
     if (!isConnectedWS) {
       toast.error('Cannot trade: No connection to server');
-      return;
-    }
-
-    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
-      toast.error('Cannot trade: Market data is stale');
       return;
     }
 
