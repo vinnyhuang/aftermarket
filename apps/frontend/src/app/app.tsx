@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, Navigate } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { trpc } from '../utils/trpc';
 import { useQueryTrpcClient } from './useQueryClient';
@@ -26,6 +26,7 @@ export function App() {
       <QueryClientProvider client={queryClient}>
         <AuthVerify />
         <Routes>
+          <Route path="/" element={<Navigate to="/sign-up" replace />} />
           <Route path="/sign-up" element={<SignUpPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />

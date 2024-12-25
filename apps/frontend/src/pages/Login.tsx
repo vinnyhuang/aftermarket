@@ -1,9 +1,8 @@
 import { Box, Button, Container, Flex, FormControl, FormLabel, Heading, Image, Input, Link, Stack, Text, VStack, keyframes } from '@chakra-ui/react';
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
-import { trpc } from '@utils/trpc';
-import { toast } from 'react-toastify';
+import { Link as RouterLink } from 'react-router-dom';
 import logo from '@assets/logo.png';
+import { useSignIn } from '@/hooks/useSignIn';
 
 const pulseAnimation = keyframes`
   0% { opacity: 1; }
@@ -29,32 +28,9 @@ const gradientButton = {
 };
 
 const LoginPage = () => {
-  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  const signInMutation = trpc.auth.signIn.useMutation({
-    onSuccess: async ({ accessToken, email, role }) => {
-      try {
-        localStorage.setItem('token', accessToken);
-        const avatarUrl = 'https://images.unsplash.com/photo-1619946794135-5bc917a27793?ixlib=rb-0.3.5&q=80&fm=jpg&crop=faces&fit=crop&h=200&w=200&s=b616b2c5b373a80ffc9636ba24f7a4a9';
-        const user = {
-          username: email,
-          role: role,
-          avatarUrl,
-        };
-        localStorage.setItem('user', JSON.stringify({ ...user, accessToken }));
-        toast.success('Login successful!');
-        await new Promise(resolve => setTimeout(resolve, 0)); // Let the storage operations complete
-        navigate('/game');
-      } catch (error) {
-        toast.error('Error during login');
-      }
-    },
-    onError: (error) => {
-      toast.error(error.message);
-    },
-  });
+  const signInMutation = useSignIn();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

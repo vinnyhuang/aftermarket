@@ -37,6 +37,7 @@ import { trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
 import { Leaderboard, LeaderboardEntry } from '@/components/Leaderboard/Leaderboard';
 import { toast } from 'react-toastify';
+import { useLogout } from '@/hooks/useLogout';
 
 ChartJS.register(
   CategoryScale,
@@ -59,7 +60,7 @@ const Header = () => (
   <Box textAlign="center" mt={6}>
     <Image src={logo} alt="AfterMarket Logo" boxSize="128px" mx="auto" />
     <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-      AfterMarket Dashboard
+      The AfterMarket Game
     </Heading>
   </Box>
 );
@@ -81,10 +82,12 @@ const GamePage = () => {
   const [buyAmount, setBuyAmount] = useState(1);
   const [isCreatingGame, setIsCreatingGame] = useState(false);
   const [isConnectedWS, setIsConnectedWS] = useState(false);
-  const [lastUpdateTimeWS, setLastUpdateTimeWS] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastPingTime, setLastPingTime] = useState<number | null>(null);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
+  const logout = useLogout();
   const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
   const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
@@ -124,18 +127,37 @@ const GamePage = () => {
     ws.onopen = () => {
       console.log('WebSocket connection established');
       setIsConnectedWS(true);
+
+      const sendPing = () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+          setLastPingTime(Date.now());
+        }
+      };
+      sendPing();
+
+      // Start ping interval
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+      pingIntervalRef.current = setInterval(sendPing, 15000); // Send ping every 15 seconds
     };
   
     ws.onclose = () => {
       console.log('WebSocket connection closed');
       setIsConnectedWS(false);
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
   
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'odds_history') {
+      if (data.type === 'pong') {
+        console.log(`[${new Date().toISOString()}] Received pong response`);
+        setLastPingTime(Date.now());
+      } else if (data.type === 'odds_history') {
         setOddsHistory(data.data);
-        setLastUpdateTimeWS(Date.now());
       } else if (data.type === 'leaderboard_update') {
         setLeaderboard(data.data);
       } else if (data.type === 'game_end') {
@@ -156,31 +178,30 @@ const GamePage = () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
   }, [connectWebSocket]);
 
-  // Handle visibility change
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Check if connection is stale (no updates in last 30 seconds)
-        const isStale = lastUpdateTimeWS && Date.now() - lastUpdateTimeWS > 30000;
-        
-        if (!isConnectedWS || isStale) {
-          if (wsRef.current) {
-            wsRef.current.close();
-          }
-          connectWebSocket();
-          toast.info('Reconnecting to server...');
+    const checkConnection = () => {
+      console.log('checking connection', isConnectedWS, lastPingTime);
+      const now = Date.now();
+      const pingTimeout = lastPingTime && now - lastPingTime > 45000;
+  
+      if (!isConnectedWS || pingTimeout) {
+        if (wsRef.current) {
+          wsRef.current.close();
         }
+        toast.info('Reconnecting to server...');
+        connectWebSocket();
       }
     };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isConnectedWS, lastUpdateTimeWS, connectWebSocket]);
+  
+    const intervalId = setInterval(checkConnection, 5000);
+    return () => clearInterval(intervalId);
+  }, [isConnectedWS, lastPingTime, connectWebSocket]);
 
   useEffect(() => {
     if (user && activeGame && !userGame && !isCreatingGame && !isLoadingUserGame) {
@@ -259,8 +280,13 @@ const GamePage = () => {
           </Button>
         )}
         <Button colorScheme="blue" onClick={() => {
-          // TODO: Implement logout logic
-          navigate('/login');
+          if (wsRef.current) {
+            wsRef.current.close();
+          }
+          if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+          }
+          logout();
         }}>
           Logout
         </Button>
@@ -376,14 +402,9 @@ const GamePage = () => {
   const handleBuy = () => {
     if (!userGame || !selectedTeam) return;
     
-    // Check for stale data
-    if (!isConnectedWS) {
-      toast.error('Cannot trade: No connection to server');
-      return;
-    }
-
-    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
-      toast.error('Cannot trade: Market data is stale');
+    const now = Date.now();
+    if (!isConnectedWS || !lastPingTime || now - lastPingTime > 45000) {
+      toast.error('Cannot trade: Waiting to reconnect to server');
       return;
     }
 
@@ -398,14 +419,9 @@ const GamePage = () => {
   const handleSell = (positionId: string) => {
     if (!activePosition) return;
 
-    // Check for stale data
-    if (!isConnectedWS) {
-      toast.error('Cannot trade: No connection to server');
-      return;
-    }
-
-    if (!lastUpdateTimeWS || Date.now() - lastUpdateTimeWS > 30000) {
-      toast.error('Cannot trade: Market data is stale');
+    const now = Date.now();
+    if (!isConnectedWS || !lastPingTime || now - lastPingTime > 45000) {
+      toast.error('Cannot trade: Waiting to reconnect to server');
       return;
     }
 
@@ -437,7 +453,7 @@ const GamePage = () => {
         <VStack spacing={8}>
           <Header />
           <Text fontSize="lg" color="gray.300">
-            Live Tracking for {activeGame.homeTeam} vs. {activeGame.awayTeam}
+            Live Trading for {activeGame.homeTeam} vs. {activeGame.awayTeam}
           </Text>
 
           {!hasGameStarted && (
@@ -446,18 +462,6 @@ const GamePage = () => {
               <Text fontSize="lg" color="blue.400">{countdown}</Text>
             </Box>
           )}
-
-          <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
-            <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
-            <VStack spacing={2}>
-              <Text color="gray.300">
-                Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
-              </Text>
-              <Text color="gray.300">
-                Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
-              </Text>
-            </VStack>
-          </Box>
 
           {hasGameStarted && userGame && (
             <>
@@ -468,28 +472,12 @@ const GamePage = () => {
                   </Text>
                 </Box>
               )}
-              <Box textAlign="center" w="full">
-                <Heading size="lg" color="green.400">Your Balance</Heading>
-                <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
-              </Box>
 
               <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg">
-                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Live Odds Chart</Heading>
+                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Live Game Chart</Heading>
                 <Box h={["300px", "400px"]}>
                   <Line data={chartData} options={chartOptions} />
                 </Box>
-              </Box>
-
-              <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
-                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Current Prices</Heading>
-                <Flex justify="space-around">
-                  <Text color="gray.300">
-                    {activeGame.homeTeam}: ${homePrice.toFixed(2)}
-                  </Text>
-                  <Text color="gray.300">
-                    {activeGame.awayTeam}: ${awayPrice.toFixed(2)}
-                  </Text>
-                </Flex>
               </Box>
 
               <Flex gap={4} justifyContent="center">
@@ -510,6 +498,35 @@ const GamePage = () => {
                   Sell
                 </Button>
               </Flex>
+
+              <Box w="full" maxW="3xl" bg="gray.800" p={6} rounded="lg" mb={4}>
+                <Heading size="lg" color="green.400" textAlign="center" mb={4}>Current Prices</Heading>
+                <Flex justify="space-around">
+                  <Text color="gray.300">
+                    {activeGame.homeTeam}: ${homePrice.toFixed(2)}
+                  </Text>
+                  <Text color="gray.300">
+                    {activeGame.awayTeam}: ${awayPrice.toFixed(2)}
+                  </Text>
+                </Flex>
+              </Box>
+
+              <Box textAlign="center" w="full" bg="gray.800" p={6} rounded="lg" mb={4}>
+                <Heading size="lg" color="green.400" mb={4}>Pregame Trade Values</Heading>
+                <VStack spacing={2}>
+                  <Text color="gray.300">
+                    Max value from $100 pregame trade on {activeGame.homeTeam}: ${(Number(activeGame.pregameHomePayout || 0)).toFixed(2)}
+                  </Text>
+                  <Text color="gray.300">
+                    Max value from $100 pregame trade on {activeGame.awayTeam}: ${(Number(activeGame.pregameAwayPayout || 0)).toFixed(2)}
+                  </Text>
+                </VStack>
+              </Box>
+
+              <Box textAlign="center" w="full">
+                <Heading size="lg" color="green.400">Your Balance</Heading>
+                <Text fontSize="2xl" fontWeight="bold" color="blue.400">${availableBankroll}</Text>
+              </Box>
 
               <Box w="full" bg="gray.800" p={6} rounded="lg">
                 <Heading size="lg" color="green.400" mb={4}>Your Positions</Heading>

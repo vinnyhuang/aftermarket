@@ -9,6 +9,7 @@ import {
   Button,
   List,
   ListItem,
+  Flex,
   Input,
   Image,
   useToast, 
@@ -17,6 +18,7 @@ import {
 import logo from '@assets/logo.png';
 import { RouterOutput, trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
+import { useLogout } from '@/hooks/useLogout';
 
 type Game = RouterOutput['admin']['getAvailableGames'][number];
 
@@ -45,6 +47,7 @@ const AdminPage = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const toast = useToast();
+  const logout = useLogout();
 
   const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { mutate: setActiveGame } = trpc.admin.setActiveGame.useMutation({
@@ -154,9 +157,12 @@ const AdminPage = () => {
 
   const HeaderButtons = () => (
     <Box position="absolute" top={4} right={4}>
-      <Button colorScheme="blue" onClick={() => navigate('/game')}>
-        Return to Game
-      </Button>
+      <Flex gap={2}>
+        <Button colorScheme="blue" onClick={() => navigate('/game')}>
+          Return to Game
+        </Button>
+        <Button colorScheme="blue" onClick={logout}>Logout</Button>
+      </Flex>
     </Box>
   );
 

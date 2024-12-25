@@ -1,12 +1,11 @@
 import { Game, TimeOdds } from '@prisma/client';
 import { prisma } from '../../server/context';
-import { getOddsForGame, getGameScore } from '../odds/odds.service';
+import { getOddsForGame, getGameScore, getGameScoreESPN } from '../odds/odds.service';
 import { WebSocketService } from '../websocket/websocket.service';
 import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
 const MONITOR_INTERVAL = 60000;
 const POLL_INTERVAL = 15000;
-const GAME_DURATION = 4 * 60 * 60 * 1000;
 
 const calculateTeamPrice = (
   currentWinProb: number | null,
@@ -41,10 +40,8 @@ export class GameMonitor {
   
       const now = new Date();
       const gameTime = new Date(activeGame.commenceTime);
-      const fourHoursLater = new Date(gameTime.getTime() + GAME_DURATION);
   
-      if (now >= gameTime && now <= fourHoursLater) {
-        this.startPolling(activeGame);
+      if (now >= gameTime && !activeGame.ended) {
         // Pull all TimeOdds for active game and set oddsHistory
         this.oddsHistory = await prisma.timeOdds.findMany({
           where: {
@@ -54,6 +51,7 @@ export class GameMonitor {
             time: 'asc'
           }
         });
+        this.startPolling(activeGame);
       } else {
         this.stopPolling();
       }
@@ -71,10 +69,20 @@ export class GameMonitor {
 
     // Define polling function
     const pollOdds = async () => {
-      // First check if game is completed
-      const score = await getGameScore(game);
-      if (score?.completed) {
-        const winningTeam = score.homeScore > score.awayScore ? 'home' : 'away';
+      // Check both score sources for game completion
+      const [oddsScore, espnScore] = await Promise.all([
+        getGameScore(game),
+        getGameScoreESPN(game)
+      ]);
+
+      let finalScore;
+      if (espnScore?.completed) {
+        finalScore = espnScore;
+      } else if (oddsScore?.completed) {
+        finalScore = oddsScore;
+      }
+      if (finalScore) {
+        const winningTeam = Number(finalScore.homeScore) > Number(finalScore.awayScore) ? 'home' : 'away';
         await this.handleGameEnd(game, winningTeam);
         this.stopPolling();
         return;
@@ -91,6 +99,19 @@ export class GameMonitor {
             ...odds
           }
         });
+
+        // If this is the start of the game, update pregame payout
+        if (this.oddsHistory.length === 0) {
+          await prisma.game.update({
+            where: { id: game.id },
+            data: {
+              pregameHomePayout: odds.homePrice * 100,
+              pregameAwayPayout: odds.awayPrice * 100,
+              pregameHomeWinProb: odds.homeWinProb,
+              pregameAwayWinProb: odds.awayWinProb
+            }
+          });
+        }
   
         this.oddsHistory.push(timeOdds);
       } else {
@@ -146,7 +167,7 @@ export class GameMonitor {
     // Process each position
     for (const position of activePositions) {
       const sellPrice = position.team === winningTeam 
-        ? Number(position.team === 'home' ? game.pregameHomePayout : game.pregameAwayPayout) / 100
+        ? Number(position.team === 'home' ? game.pregameHomePayout : game.pregameAwayPayout)
         : 0;
 
       const sellAmount = Number(position.buyAmount) * sellPrice / Number(position.buyPrice);
@@ -189,8 +210,8 @@ export class GameMonitor {
     // Broadcast final leaderboard
     await this.leaderboardService.calculateAndBroadcastLeaderboard(
       game.id,
-      winningTeam === 'home' ? Number(game.pregameHomePayout) / 100 : 0,
-      winningTeam === 'away' ? Number(game.pregameAwayPayout) / 100 : 0
+      winningTeam === 'home' ? Number(game.pregameHomePayout) : 0,
+      winningTeam === 'away' ? Number(game.pregameAwayPayout) : 0
     );
 
     // Broadcast game end event
