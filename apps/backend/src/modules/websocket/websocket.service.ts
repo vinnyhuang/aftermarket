@@ -14,6 +14,17 @@ export class WebSocketService {
   private async setupWebSocket() {
     this.fastify.get('/ws', { websocket: true }, async (connection) => {
       this.connections.add(connection);
+
+      connection.socket.on('message', (message: Buffer) => {
+        try {
+          const data = JSON.parse(message.toString());
+          if (data.type === 'ping') {
+            connection.socket.send(JSON.stringify({ type: 'pong' }));
+          }
+        } catch (error) {
+          console.error('Error handling websocket message:', error);
+        }
+      });
       
       // Get active game and its odds history
       const activeGame = await prisma.game.findFirst({

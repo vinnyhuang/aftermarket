@@ -1,7 +1,7 @@
 import { useGlobalStateStore } from '@GlobalState';
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { toast } from 'react-toastify';
+import { useLogout } from '@/hooks/useLogout';
 
 const parseJwt = (token: string) => {
   try {
@@ -15,6 +15,29 @@ const AuthVerify = () => {
   const location = useLocation();
   const state = useGlobalStateStore((state) => state);
   const initialized = useRef(false);
+  const handleLogout = useLogout();
+
+  // Add global axios interceptor for 401 responses
+  useEffect(() => {
+    const interceptor = (response: Response) => {
+      if (response.status === 401) {
+        handleLogout();
+      }
+      return response;
+    };
+
+    // Add the interceptor to the global fetch
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await originalFetch(...args);
+      return interceptor(response.clone());
+    };
+
+    return () => {
+      // Restore original fetch when component unmounts
+      window.fetch = originalFetch;
+    };
+  }, [handleLogout]);
 
   useEffect(() => {
     if (initialized.current) return;
@@ -42,15 +65,13 @@ const AuthVerify = () => {
       if (user && user.accessToken) {
         const decodedJwt = parseJwt(user.accessToken);
         if (decodedJwt && decodedJwt.exp * 1000 < Date.now()) {
-          localStorage.removeItem('user');
-          toast.warning('Your token expired');
-          state.signOut();
+          handleLogout();
         }
       }
     } catch (error) {
       console.error('Error checking token:', error);
     }
-  }, [location, state]);
+  }, [location, handleLogout]);
 
   return null;
 };

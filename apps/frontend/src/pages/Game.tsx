@@ -83,6 +83,8 @@ const GamePage = () => {
   const [isConnectedWS, setIsConnectedWS] = useState(false);
   const [lastUpdateTimeWS, setLastUpdateTimeWS] = useState<number | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [lastPingTime, setLastPingTime] = useState<number | null>(null);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
   const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
@@ -124,16 +126,34 @@ const GamePage = () => {
     ws.onopen = () => {
       console.log('WebSocket connection established');
       setIsConnectedWS(true);
+      
+      // Start ping interval
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
+      
+      pingIntervalRef.current = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+          setLastPingTime(Date.now());
+        }
+      }, 15000); // Send ping every 15 seconds
     };
   
     ws.onclose = () => {
       console.log('WebSocket connection closed');
       setIsConnectedWS(false);
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
   
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
-      if (data.type === 'odds_history') {
+      if (data.type === 'pong') {
+        console.log(`[${new Date().toISOString()}] Received pong response`);
+        setLastPingTime(Date.now());
+      } else if (data.type === 'odds_history') {
         setOddsHistory(data.data);
         setLastUpdateTimeWS(Date.now());
       } else if (data.type === 'leaderboard_update') {
@@ -156,8 +176,29 @@ const GamePage = () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      if (pingIntervalRef.current) {
+        clearInterval(pingIntervalRef.current);
+      }
     };
   }, [connectWebSocket]);
+
+  useEffect(() => {
+    const checkConnection = () => {
+      const now = Date.now();
+      const isStale = lastUpdateTimeWS && now - lastUpdateTimeWS > 30000;
+      const pingTimeout = lastPingTime && now - lastPingTime > 45000;
+  
+      if (!isConnectedWS || isStale || pingTimeout) {
+        if (wsRef.current) {
+          wsRef.current.close();
+        }
+        connectWebSocket();
+      }
+    };
+  
+    const intervalId = setInterval(checkConnection, 5000);
+    return () => clearInterval(intervalId);
+  }, [isConnectedWS, lastUpdateTimeWS, lastPingTime, connectWebSocket]);
 
   // Handle visibility change
   useEffect(() => {
