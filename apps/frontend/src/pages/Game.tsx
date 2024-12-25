@@ -59,7 +59,7 @@ const Header = () => (
   <Box textAlign="center" mt={6}>
     <Image src={logo} alt="AfterMarket Logo" boxSize="128px" mx="auto" />
     <Heading sx={gradientText} fontSize="4xl" fontWeight="extrabold">
-      AfterMarket Dashboard
+      The AfterMarket Game
     </Heading>
   </Box>
 );
@@ -437,7 +437,7 @@ const GamePage = () => {
         <VStack spacing={8}>
           <Header />
           <Text fontSize="lg" color="gray.300">
-            Live Tracking for {activeGame.homeTeam} vs. {activeGame.awayTeam}
+            Live Trading for {activeGame.homeTeam} vs. {activeGame.awayTeam}
           </Text>
 
           {!hasGameStarted && (
