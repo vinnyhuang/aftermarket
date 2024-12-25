@@ -1,6 +1,6 @@
 import { Game, TimeOdds } from '@prisma/client';
 import { prisma } from '../../server/context';
-import { getOddsForGame, getGameScore } from '../odds/odds.service';
+import { getOddsForGame, getGameScore, getGameScoreESPN } from '../odds/odds.service';
 import { WebSocketService } from '../websocket/websocket.service';
 import { LeaderboardService } from '../leaderboard/leaderboard.service';
 
@@ -69,10 +69,20 @@ export class GameMonitor {
 
     // Define polling function
     const pollOdds = async () => {
-      // First check if game is completed
-      const score = await getGameScore(game);
-      if (score?.completed) {
-        const winningTeam = score.homeScore > score.awayScore ? 'home' : 'away';
+      // Check both score sources for game completion
+      const [oddsScore, espnScore] = await Promise.all([
+        getGameScore(game),
+        getGameScoreESPN(game)
+      ]);
+
+      let finalScore;
+      if (espnScore?.completed) {
+        finalScore = espnScore;
+      } else if (oddsScore?.completed) {
+        finalScore = oddsScore;
+      }
+      if (finalScore) {
+        const winningTeam = Number(finalScore.homeScore) > Number(finalScore.awayScore) ? 'home' : 'away';
         await this.handleGameEnd(game, winningTeam);
         this.stopPolling();
         return;
