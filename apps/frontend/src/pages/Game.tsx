@@ -37,6 +37,7 @@ import { trpc } from '@/utils/trpc';
 import { useNavigate } from 'react-router-dom';
 import { Leaderboard, LeaderboardEntry } from '@/components/Leaderboard/Leaderboard';
 import { toast } from 'react-toastify';
+import { useLogout } from '@/hooks/useLogout';
 
 ChartJS.register(
   CategoryScale,
@@ -87,6 +88,7 @@ const GamePage = () => {
   const [lastPingTime, setLastPingTime] = useState<number | null>(null);
   const { isOpen: isBuyOpen, onOpen: onBuyOpen, onClose: onBuyClose } = useDisclosure();
   const { isOpen: isSellOpen, onOpen: onSellOpen, onClose: onSellClose } = useDisclosure();
+  const logout = useLogout();
   const { data: activeGame, refetch: refetchActiveGame } = trpc.admin.getActiveGame.useQuery();
   const { data: user } = trpc.users.getCurrentUser.useQuery();
   const { data: userGame, refetch: refetchUserGame, isLoading: isLoadingUserGame } = trpc.game.getUserGame.useQuery(
@@ -300,8 +302,13 @@ const GamePage = () => {
           </Button>
         )}
         <Button colorScheme="blue" onClick={() => {
-          // TODO: Implement logout logic
-          navigate('/login');
+          if (wsRef.current) {
+            wsRef.current.close();
+          }
+          if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+          }
+          logout();
         }}>
           Logout
         </Button>
