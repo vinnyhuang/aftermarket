@@ -9,6 +9,7 @@ import {
   Button,
   List,
   ListItem,
+  Flex,
   Input,
   Image,
   useToast, 
@@ -156,10 +157,12 @@ const AdminPage = () => {
 
   const HeaderButtons = () => (
     <Box position="absolute" top={4} right={4}>
-      <Button colorScheme="blue" onClick={() => navigate('/game')}>
-        Return to Game
-      </Button>
-      <Button colorScheme="blue" onClick={logout}>Logout</Button>
+      <Flex gap={2}>
+        <Button colorScheme="blue" onClick={() => navigate('/game')}>
+          Return to Game
+        </Button>
+        <Button colorScheme="blue" onClick={logout}>Logout</Button>
+      </Flex>
     </Box>
   );
 
