@@ -6,6 +6,9 @@
 - [Environment Setup](#environment-setup)
   - [Copy `.env` Files](#copy-env-files)
   - [Adjust Environment Variables](#adjust-environment-variables)
+- [Server Setup](#server-setup)
+  - [Installing Docker](#installing-docker)
+  - [Setting Up SSH Access](#setting-up-ssh-access)
 - [Running the Project](#running-the-project)
   - [Running Locally](#running-locally)
   - [Running on Development Server](#running-on-development-server)
@@ -78,6 +81,64 @@ Copy the example environment files to create your own configuration:
   SSH_KEY=/path/to/ssh/key
   REMOTE_PROJECT_PATH=/path/to/project
   ```
+
+## Server Setup
+
+### Installing Docker
+
+To prepare your server for deployment, you need to install Docker and Docker Compose. Follow the official Docker documentation for your specific operating system:
+
+- [Install Docker Engine](https://docs.docker.com/engine/install/)
+
+Typically, this involves downloading the Docker installation package and running the installer. After installation, ensure that the Docker daemon is running.
+
+### Setting Up SSH Access
+
+To allow secure access to your server, you'll need to set up SSH keys. Here's how:
+
+1.  **Generate an SSH Key Pair**:
+
+    On your local machine, generate a new SSH key pair using the following command:
+
+    ```bash
+    ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
+    ```
+
+    This will create a private key (`id_rsa`) and a public key (`id_rsa.pub`) in the `~/.ssh` directory.
+
+2.  **Copy the Public Key to the Server**:
+
+    Use `ssh-copy-id` to copy the public key to the server. Replace `user@your_server_ip` with your server's username and IP address:
+
+    ```bash
+    ssh-copy-id user@your_server_ip
+    ```
+
+    You may be prompted for your server password the first time.
+
+3.  **Add the Public Key Manually (if `ssh-copy-id` fails)**:
+
+    If `ssh-copy-id` doesn't work, you can manually add the public key to the `~/.ssh/authorized_keys` file on the server:
+
+    ```bash
+    # On your local machine, copy the public key
+    cat ~/.ssh/id_rsa.pub
+
+    # On the server, add the public key to authorized_keys
+    mkdir -p ~/.ssh
+    nano ~/.ssh/authorized_keys
+    # Paste the public key into the file, save and exit
+    ```
+
+4.  **Test SSH Access**:
+
+    Try logging into the server using SSH:
+
+    ```bash
+    ssh user@your_server_ip
+    ```
+
+    If successful, you should be logged in without needing a password.
 
 ## Running the Project
 
